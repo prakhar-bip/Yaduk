@@ -1,0 +1,23 @@
+# Python
+venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+
+# Node
+node_modules/
+dist/
+.output/
+.nitro/
+.wrangler/
+
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# OS
+.DS_Store
+Thumbs.db
