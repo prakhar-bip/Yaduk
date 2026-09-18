@@ -1,0 +1,53 @@
+import type { Blueprint, StudentProfile } from "@/lib/types";
+import { Mentor } from "./Mentor";
+import { YadukLogo } from "./YadukLogo";
+import { MessageSquare, X } from "lucide-react";
+
+export function MentorDock({
+  profile,
+  blueprint,
+  askSeed,
+  onAsked,
+  open,
+  onToggle,
+}: {
+  profile: StudentProfile;
+  blueprint: Blueprint;
+  askSeed?: { text: string; n: number } | null;
+  onAsked?: () => void;
+  open: boolean;
+  onToggle: (open: boolean) => void;
+}) {
+  return (
+    <div className="fixed bottom-5 right-5 z-40 flex flex-col items-end gap-3">
+      <div
+        className={`w-[min(92vw,26rem)] origin-bottom-right transition-all duration-300 ease-out ${
+          open
+            ? "pointer-events-auto scale-100 opacity-100"
+            : "pointer-events-none translate-y-3 scale-95 opacity-0"
+        }`}
+      >
+        <div className="overflow-hidden rounded-2xl shadow-2xl shadow-blue-500/20 border border-slate-200">
+          <Mentor
+            profile={profile}
+            blueprint={blueprint}
+            askSeed={open ? (askSeed ?? null) : null}
+            onAsked={onAsked ?? (() => {})}
+            compact
+            onClose={() => onToggle(false)}
+          />
+        </div>
+      </div>
+
+      <button
+        type="button"
+        onClick={() => onToggle(!open)}
+        aria-expanded={open}
+        className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 px-3.5 py-2 text-xs font-bold text-white shadow-lg shadow-blue-500/25 transition-all hover:shadow-xl hover:shadow-blue-500/35 hover:-translate-y-0.5 cursor-pointer"
+      >
+        <YadukLogo size={20} />
+        <span>{open ? "Minimize Chat" : "Ask Yaduk"}</span>
+      </button>
+    </div>
+  );
+}
