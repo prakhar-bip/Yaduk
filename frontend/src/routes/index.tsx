@@ -625,7 +625,7 @@ function Home() {
           stage={state.stage}
           badges={state.badges}
           onReset={handleLogout}
-          onSelectStage={handleStageSelect}
+          onSelectStage={handleStageNavigation}
         />
       )}
 
