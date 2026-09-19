@@ -446,6 +446,43 @@ def generate_project_blueprint(student_profile: dict, project_idea: dict, model_
         ],
         "data_flow": ["Step 1: User action...", "Step 2: API processing...", "Step 3: Database query...", "Step 4: Response render..."]
       }},
+      "user_workflow": [
+        {{
+          "step_number": 1,
+          "screen_name": "Landing & Public Showcase",
+          "route": "/",
+          "user_action": "Discovers value proposition, reviews live demo, and triggers 'Get Started' action",
+          "key_components": ["Hero Showcase", "Feature Matrix", "API Specs Link", "Auth Entry CTA"]
+        }},
+        {{
+          "step_number": 2,
+          "screen_name": "Authentication & Onboarding",
+          "route": "/auth",
+          "user_action": "Registers client profile, provisions OAuth2 credentials, and issues API Bearer tokens",
+          "key_components": ["Client Registration Form", "OAuth2 Token Exchange", "API Key Display"]
+        }},
+        {{
+          "step_number": 3,
+          "screen_name": "Main Telemetry Dashboard",
+          "route": "/dashboard",
+          "user_action": "Monitors system health, KPI metric cards, throughput, and system alerts",
+          "key_components": ["Live KPI Cards", "Throughput Line Chart", "System Status Monitor"]
+        }},
+        {{
+          "step_number": 4,
+          "screen_name": "Core Functional Engine",
+          "route": "/workspace",
+          "user_action": "Executes primary project feature, performs core transactions, and manages records",
+          "key_components": ["Action Input Form", "Data Records Table with Status Pills", "Search & Filter Bar"]
+        }},
+        {{
+          "step_number": 5,
+          "screen_name": "Audit, Reviews & System Inspection",
+          "route": "/audit",
+          "user_action": "Inspects state changes, verifies cryptographic integrity signatures, and exports reports",
+          "key_components": ["Tamper-Evident Event Stream", "Signature Verifier", "Export CSV/JSON Trigger"]
+        }}
+      ],
       "development_roadmap": [
         {{
           "phase_number": 1,

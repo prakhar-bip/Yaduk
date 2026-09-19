@@ -35,6 +35,7 @@ class ProjectBlueprint(Base):
     features = Column(JSON)
     tech_stack = Column(JSON)
     system_architecture = Column(JSON)
+    user_workflow = Column(JSON, nullable=True)
     development_roadmap = Column(JSON)
     challenges_and_solutions = Column(JSON)
 

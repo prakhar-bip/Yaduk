@@ -227,6 +227,7 @@ def create_or_get_blueprint(idea_id: int, force_regenerate: bool = False, db: Se
         existing_blueprint.features = blueprint_data.get("features", {})
         existing_blueprint.tech_stack = blueprint_data.get("tech_stack", [])
         existing_blueprint.system_architecture = blueprint_data.get("system_architecture", {})
+        existing_blueprint.user_workflow = blueprint_data.get("user_workflow", [])
         existing_blueprint.development_roadmap = blueprint_data.get("development_roadmap", [])
         existing_blueprint.challenges_and_solutions = blueprint_data.get("challenges_and_solutions", [])
         db.commit()
@@ -239,6 +240,7 @@ def create_or_get_blueprint(idea_id: int, force_regenerate: bool = False, db: Se
             features=blueprint_data.get("features", {}),
             tech_stack=blueprint_data.get("tech_stack", []),
             system_architecture=blueprint_data.get("system_architecture", {}),
+            user_workflow=blueprint_data.get("user_workflow", []),
             development_roadmap=blueprint_data.get("development_roadmap", []),
             challenges_and_solutions=blueprint_data.get("challenges_and_solutions", [])
         )

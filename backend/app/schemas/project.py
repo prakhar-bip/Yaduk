@@ -39,6 +39,7 @@ class ProjectBlueprintResponse(BaseModel):
     features: dict
     tech_stack: List[dict]
     system_architecture: dict
+    user_workflow: Optional[List[dict]] = None
     development_roadmap: List[dict]
     challenges_and_solutions: List[dict]
 

@@ -11,6 +11,7 @@ import type {
   PrototypeFile,
   QuestScroll,
   StudentProfile,
+  UserWorkflowStep,
 } from "./types";
 
 const SYSTEM =
@@ -154,7 +155,7 @@ export const generateBlueprint = createServerFn({ method: "POST" })
     }) => data,
   )
   .handler(async ({ data }) => {
-    return await generateJson<Blueprint>({
+    const res = await generateJson<Blueprint>({
       system: SYSTEM,
       prompt: `${profileBlock(data.profile)}
 
@@ -173,11 +174,57 @@ JSON shape:
 "futureImprovements":["4"],
 "stack":[{"name":"","category":"Frontend|Backend|Database|AI|DevOps|Tooling","why":"","howUsed":"","isNew":false}],
 "architecture":{"layers":[{"name":"","parts":["..."]}],"dataFlow":"2-3 sentences describing the request/data path"},
+"userWorkflow":[{"step":1,"screen":"Landing & Showcase","route":"/","userAction":"Explore platform capabilities and CTA","keyComponents":["Hero","Feature Matrix","Auth CTA"]},{"step":2,"screen":"Authentication & Onboarding","route":"/auth","userAction":"Sign up / login and obtain access credentials","keyComponents":["AuthForm","OAuth2 Handler","API Key View"]},{"step":3,"screen":"Main Telemetry Dashboard","route":"/dashboard","userAction":"View key system metrics and health status","keyComponents":["KPI Cards","Telemetry Graph","Quick Actions"]},{"step":4,"screen":"Core Domain Workflow / Registry","route":"/workspace","userAction":"Execute core project feature and manage records","keyComponents":["Input Form","Data Table with Status Pills","Filters"]},{"step":5,"screen":"Audit, Reviews & Compliance","route":"/audit","userAction":"Inspect history, review records, and export reports","keyComponents":["Audit Trail","Integrity Verifier","Export"]}],
 "roadmap":[{"phase":"01","title":"e.g. Planning & requirements","weeks":"wk 1","tasks":["3-5 concrete tasks"]}],
 "challenges":[{"challenge":"","solution":""}]}
-Roadmap must cover planning, requirements, setup, core/backend, frontend, database, AI integration if relevant, testing, deployment.`,
+Roadmap must cover planning, requirements, setup, core/backend, frontend, database, AI integration if relevant, testing, deployment.
+User workflow must cover the real end-to-end user navigation journey from landing to reviews.`,
     });
+    if (!res.userWorkflow || res.userWorkflow.length === 0) {
+      res.userWorkflow = getDefaultUserWorkflow(res.title);
+    }
+    return res;
   });
+
+export function getDefaultUserWorkflow(title?: string): UserWorkflowStep[] {
+  return [
+    {
+      step: 1,
+      screen: "Landing & Public Showcase",
+      route: "/",
+      userAction: "Discover platform capabilities, live architecture demo, and initiate onboarding.",
+      keyComponents: ["Hero Showcase", "Feature Matrix", "API Specs Link", "Auth CTA"],
+    },
+    {
+      step: 2,
+      screen: "Authentication & Client Onboarding",
+      route: "/auth",
+      userAction: "Register user/client profile, manage credentials, and issue authentication tokens.",
+      keyComponents: ["Client Auth Form", "OAuth2 / Session Handler", "Credentials Vault"],
+    },
+    {
+      step: 3,
+      screen: "Primary Telemetry Dashboard",
+      route: "/dashboard",
+      userAction: "Monitor system health, live KPI metrics, throughput, and system alerts.",
+      keyComponents: ["Live KPI Metric Cards", "Throughput Chart", "Activity Feed"],
+    },
+    {
+      step: 4,
+      screen: "Core Domain Engine / Registry",
+      route: "/workspace",
+      userAction: "Execute the primary application workflow, create/process entities, and view live results.",
+      keyComponents: ["Action Input Form", "Data Records Table", "Status Badges & Filters"],
+    },
+    {
+      step: 5,
+      screen: "Audit, Reviews & System Inspection",
+      route: "/audit",
+      userAction: "Inspect event history, review state transitions, verify integrity, and export data.",
+      keyComponents: ["Tamper-Evident Event Stream", "Integrity Verifier", "Export CSV/JSON"],
+    },
+  ];
+}
 
 export function generateBlueprintScrollFallback(blueprint: Blueprint): QuestScroll {
   const bp = blueprint;

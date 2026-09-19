@@ -60,7 +60,16 @@ export type Feasibility = {
   alternative: { name: string; summary: string };
 };
 
+export type UserWorkflowStep = {
+  step: number;
+  screen: string;
+  route: string;
+  userAction: string;
+  keyComponents: string[];
+};
+
 export type Blueprint = {
+  id?: string;
   title: string;
   overview: {
     summary: string;
@@ -75,6 +84,7 @@ export type Blueprint = {
   futureImprovements: string[];
   stack: { name: string; category: string; why: string; howUsed: string; isNew: boolean }[];
   architecture: { layers: { name: string; parts: string[] }[]; dataFlow: string };
+  userWorkflow?: UserWorkflowStep[];
   roadmap: { phase: string; title: string; weeks: string; tasks: string[] }[];
   challenges: { challenge: string; solution: string }[];
 };

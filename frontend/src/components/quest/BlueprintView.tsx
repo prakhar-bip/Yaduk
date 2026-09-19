@@ -1,5 +1,6 @@
 import type { Blueprint } from "@/lib/types";
-import { CheckCircle2, Sparkles, Layers, Cpu, Compass, AlertCircle, ArrowRight, Palette, Github, Zap } from "lucide-react";
+import { CheckCircle2, Sparkles, Layers, Cpu, Compass, AlertCircle, ArrowRight, Palette, Github, Zap, Workflow } from "lucide-react";
+import { getDefaultUserWorkflow } from "@/lib/quest.functions";
 
 function Section({
   tag,
@@ -56,6 +57,7 @@ export function BlueprintView({
   const stack = b?.stack || [];
   const layers = b?.architecture?.layers || [];
   const dataFlow = b?.architecture?.dataFlow || "";
+  const userWorkflow = (b?.userWorkflow && b.userWorkflow.length > 0) ? b.userWorkflow : getDefaultUserWorkflow(b?.title);
   const roadmap = b?.roadmap || [];
   const challenges = b?.challenges || [];
   const safeChangeLog = changeLog || [];
@@ -246,6 +248,64 @@ export function BlueprintView({
             {dataFlow}
           </div>
         )}
+      </Section>
+
+      {/* End-to-End Application Screen & User Journey Workflow */}
+      <Section
+        tag="Application User Journey"
+        title="Screen Navigation & Interaction Workflow"
+        icon={<Workflow className="size-4 text-indigo-600" />}
+        delay={105}
+      >
+        <p className="text-xs text-slate-500 mb-4">
+          The sequential end-user flow and route hierarchy from initial public landing to core execution and reviews:
+        </p>
+
+        <div className="grid gap-3.5 sm:grid-cols-2 lg:grid-cols-5">
+          {userWorkflow.map((step, idx) => (
+            <div
+              key={step.step || idx}
+              className="relative rounded-2xl border border-slate-200/90 bg-slate-50/50 p-4 flex flex-col justify-between shadow-2xs hover:bg-white hover:border-indigo-300 transition-all group"
+            >
+              <div>
+                <div className="flex items-center justify-between gap-2 mb-2">
+                  <span className="grid size-6 place-items-center rounded-full bg-indigo-600 text-[10px] font-mono font-bold text-white shadow-xs">
+                    {step.step || idx + 1}
+                  </span>
+                  <span className="font-mono text-[10px] font-bold px-2 py-0.5 rounded-md bg-slate-200/80 text-slate-700">
+                    {step.route || "/"}
+                  </span>
+                </div>
+
+                <h4 className="font-display text-xs sm:text-sm font-bold text-slate-900 leading-snug group-hover:text-indigo-600 transition-colors">
+                  {step.screen}
+                </h4>
+
+                <p className="mt-1.5 text-[11px] text-slate-600 leading-relaxed">
+                  {step.userAction}
+                </p>
+              </div>
+
+              {step.keyComponents && step.keyComponents.length > 0 && (
+                <div className="mt-3 pt-2.5 border-t border-slate-200/70">
+                  <span className="text-[9px] font-mono text-slate-400 block mb-1 uppercase tracking-wider">
+                    Components
+                  </span>
+                  <div className="flex flex-wrap gap-1">
+                    {step.keyComponents.map((comp, cIdx) => (
+                      <span
+                        key={cIdx}
+                        className="rounded bg-white border border-slate-200/80 px-1.5 py-0.5 text-[9px] font-medium text-slate-600"
+                      >
+                        {comp}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
       </Section>
 
       {/* Development Roadmap */}
