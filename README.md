@@ -1,27 +1,27 @@
 # Yaduk (by Yaduka) — AI-Powered Project Discovery & Architecture Blueprint Engine
 
 > **Yaduk** *(noun, Sanskrit / Indic root)*: Focused strategic guidance and purposeful execution.  
-> Under the **Yaduka** ecosystem, Yaduk serves as the intelligent architect and mentor for engineering students, transforming raw curiosity, skills, and constraints into verified, production-grade final-year and hackathon capstone projects.
+> Under the **Yaduka** ecosystem, Yaduk serves as the intelligent architect and mentor for engineering students, transforming raw curiosity, skills, and constraints into verified, production-grade final-year and flagship capstone projects.
 
-[![AWS Hackathon Track](https://img.shields.io/badge/AWS%20Hackathon-Track%202%3A%20SHIP%20IT%20%2B%20Track%201%3A%20BUILD%20IT-orange?style=for-the-badge&logo=amazon-aws)](https://aws.amazon.com)
+[![AWS Cloud Architecture](https://img.shields.io/badge/AWS%20Cloud-App%20Runner%20%7C%20Amplify%20%7C%20RDS-orange?style=for-the-badge&logo=amazon-aws)](https://aws.amazon.com)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg?style=for-the-badge)](https://opensource.org/licenses/MIT)
 [![Frontend](https://img.shields.io/badge/Frontend-React%2019%20%7C%20TanStack-61DAFB?style=for-the-badge&logo=react)](https://tanstack.com)
 [![Backend](https://img.shields.io/badge/Backend-FastAPI%20%7C%20Python%203.12-009688?style=for-the-badge&logo=fastapi)](https://fastapi.tiangolo.com)
 
 ---
 
-## 🚀 Hackathon Track Alignment: Dual-Track Architecture
+## 🚀 Cloud & Enterprise Architecture: Dual-Mode Deployment
 
-Yaduk was engineered to compete directly in the **AWS Hackathon**, adopting the dual-track matrix:
+Yaduk is engineered with a scalable enterprise dual-mode deployment model:
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────────────────────────┐
-│                                   TWO MAIN TRACKS TO BUILD                                      │
+│                              DUAL-MODE ARCHITECTURE OVERVIEW                                    │
 ├──────────────────────┬────────────────────────────────────┬─────────────────────────────────────┤
-│ WHAT YOU NEED        │ BUILD IT (Open Source, Local)      │ SHIP IT (Deployed, With a URL)      │
-│                      │ "No AWS account, no card, no bill" │ "Free tier: up to $200 in credits" │
+│ CAPABILITY           │ LOCAL / SELF-HOSTED                │ CLOUD DEPLOYED (AWS PRODUCTION)     │
+│                      │ Zero-cost local developer mode     │ Scalable multi-tenant cloud tier    │
 ├──────────────────────┼────────────────────────────────────┼─────────────────────────────────────┤
-│ Agents and AI        │ Local AI Inference, Strands SDK    │ SageMaker AI Orchestration Router   │
+│ Agents and AI        │ Local AI Inference, Strands SDK    │ SageMaker / AI Gateway Router       │
 │ Containers & K8s     │ Finch, Docker Container Engine     │ AWS App Runner, ECS Fargate         │
 │ Web & Hosting        │ Local TanStack / Vite Server       │ AWS Amplify Hosting, CloudFront CDN │
 │ Data & Search        │ OpenSearch, Local PostgreSQL       │ Amazon RDS PostgreSQL, Amazon S3    │
@@ -30,15 +30,15 @@ Yaduk was engineered to compete directly in the **AWS Hackathon**, adopting the 
 └──────────────────────┴────────────────────────────────────┴─────────────────────────────────────┘
 ```
 
-### 1. Primary Track: **SHIP IT (Deployed, with a URL)**
+### 1. Cloud Production Deployment (AWS)
 - **Web Frontend**: Automated CI/CD deployment on **AWS Amplify Hosting** with global edge acceleration via **Amazon CloudFront**.
 - **Backend API**: Containerized microservice running on **AWS App Runner** / **AWS ECS Fargate** with auto-scaling and health probes.
 - **Relational Data**: Production persistence with **Amazon RDS (PostgreSQL)**.
 - **Artifact Storage**: Blueprint exports and packaged starter codebases stored in **Amazon S3**.
 - **User Authentication**: Secure token authentication with **Amazon Cognito** / JWT token sessions.
 
-### 2. Dual-Mode Track: **BUILD IT (Open Source, On Your Machine)**
-- Runs 100% locally with zero cloud subscription fees or credit card requirements.
+### 2. Local Self-Hosted Mode (Open Source)
+- Runs 100% locally with zero cloud subscription fees or external dependencies.
 - Uses **Finch** (AWS's open-source container engine) and Docker for lightweight local containerization.
 - Fine-grained project authorization rules specified with **Cedar** policies.
 - Fast vector similarity and keyword search for 100+ project ideas using **OpenSearch**.
@@ -119,4 +119,4 @@ Open your browser at `http://localhost:3000` (or `http://localhost:5173`).
 ---
 
 ## 🏛️ Ecosystem: Yaduka
-**Yaduk** is crafted under the **Yaduka** banner for the 2026 hackathon season, democratizing access to senior-level software architecture and project planning for students worldwide.
+**Yaduk** is engineered under the **Yaduka** ecosystem, democratizing access to senior-level software architecture and project planning for engineering students and developers worldwide.

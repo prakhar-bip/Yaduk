@@ -30,7 +30,7 @@ class Settings(BaseSettings):
     NVIDIA_MODEL: str = os.getenv("NVIDIA_MODEL", "nvidia/nemotron-3-ultra-550b-a55b")
 
     # JWT Authentication settings
-    JWT_SECRET_KEY: str = os.getenv("JWT_SECRET_KEY", "yaduk-super-secret-key-yaduka-hackathon-2026-auth-jwt")
+    JWT_SECRET_KEY: str = os.getenv("JWT_SECRET_KEY", "yaduk-super-secret-key-yaduka-core-auth-jwt")
     JWT_ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24 * 7  # 7 days
 
