@@ -27,11 +27,13 @@ class Settings(BaseSettings):
     OPENROUTER_API_KEY: str = os.getenv("OPENROUTER_API_KEY", "")
     OPENROUTER_BASE_URL: str = os.getenv("OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1")
     OPENROUTER_MODEL: str = os.getenv("OPENROUTER_MODEL", "nvidia/nemotron-3-ultra-550b-a55b:free")
+    OPENROUTER_TIMEOUT: float = float(os.getenv("OPENROUTER_TIMEOUT", "35.0"))
 
     # Groq Fallback AI Settings (Tertiary Tier: High-Throughput Reasoning Engine)
     GROQ_API_KEY: str = os.getenv("GROQ_API_KEY", "")
     GROQ_BASE_URL: str = os.getenv("GROQ_BASE_URL", "https://api.groq.com/openai/v1")
     GROQ_MODEL: str = os.getenv("GROQ_MODEL", "openai/gpt-oss-120b")
+    GROQ_TIMEOUT: float = float(os.getenv("GROQ_TIMEOUT", "25.0"))
 
     # Backward-compatible aliases for client interfaces
     NVIDIA_API_KEY: str = os.getenv("NVIDIA_API_KEY", OPENROUTER_API_KEY or GROQ_API_KEY)

@@ -72,7 +72,8 @@ def call_openrouter(prompt: str, system_instruction: str = None, temperature: fl
         messages=messages,
         temperature=temperature,
         max_tokens=max_tokens,
-        extra_body=extra_body if extra_body else None
+        extra_body=extra_body if extra_body else None,
+        timeout=settings.OPENROUTER_TIMEOUT
     )
     return response.choices[0].message.content
 
@@ -97,7 +98,8 @@ def call_groq(prompt: str, system_instruction: str = None, temperature: float = 
         model=settings.GROQ_MODEL,
         messages=messages,
         temperature=temperature,
-        max_tokens=max_tokens
+        max_tokens=max_tokens,
+        timeout=settings.GROQ_TIMEOUT
     )
     return response.choices[0].message.content
 
