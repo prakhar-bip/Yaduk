@@ -10,6 +10,7 @@ const STAGES: { key: Stage; label: string }[] = [
   { key: "feasibility", label: "Reality Check" },
   { key: "blueprint", label: "System Blueprint" },
   { key: "theme", label: "Theme" },
+  { key: "contract", label: "Backend & DB Spec" },
   { key: "prototype", label: "Prototype" },
 ];
 

@@ -106,7 +106,7 @@ export function ThemeSelection({
   onBack: () => void;
   isGenerating?: boolean;
 }) {
-  // Query only the required Page Workflow from the Knowledge Base (The "Godown")
+  // Query the planned Screen Navigation Workflow from the Blueprint
   const workflowPages: UserWorkflowStep[] =
     blueprint.userWorkflow && blueprint.userWorkflow.length > 0
       ? blueprint.userWorkflow
@@ -397,7 +397,7 @@ module.exports = {
             style={{ backgroundColor: primaryColor }}
           >
             <Wand2 className={`size-4 ${isGenerating ? "animate-spin" : ""}`} />
-            <span>{isGenerating ? "Manifesting Codebase..." : "Confirm Theme & Continue →"}</span>
+            <span>{isGenerating ? "Synthesizing Backend Spec..." : "Confirm Theme & Review Backend Spec →"}</span>
           </button>
         </div>
       </div>
@@ -409,7 +409,7 @@ module.exports = {
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div>
               <span className="text-[10px] font-mono font-bold text-slate-400 uppercase tracking-wider block mb-1">
-                Knowledge Base Workflow Pages (The "Godown")
+                Application User Journey & Screen Skeletons
               </span>
               <div className="flex items-center gap-1.5 flex-wrap">
                 {workflowPages.map((page, idx) => {

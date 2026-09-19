@@ -2,7 +2,11 @@ import { createServerFn } from "@tanstack/react-start";
 import { generateJson, generateText } from "./ai-gateway.server";
 import type {
   ApiEndpointContract,
+  ApiRouteSpec,
+  BackendContractDoc,
+  BackendServiceSpec,
   Blueprint,
+  DatabaseTableSpec,
   Feasibility,
   ProductionBatch,
   ProductionManifest,
@@ -1212,6 +1216,852 @@ Begin outputting the batch files now:`;
     }
 
     return parsedFiles;
+  });
+
+export function generateBackendContractFallback(
+  blueprint: Blueprint,
+  profile?: StudentProfile | null
+): BackendContractDoc {
+  const title = blueprint.title || "Production Software Platform";
+  const backendTech =
+    blueprint.stack.find(
+      (s) =>
+        s.category.toLowerCase().includes("backend") ||
+        s.name.toLowerCase().includes("fastapi") ||
+        s.name.toLowerCase().includes("express")
+    )?.name || "FastAPI (Python 3.11)";
+
+  const dbTech =
+    blueprint.stack.find(
+      (s) =>
+        s.category.toLowerCase().includes("database") ||
+        s.name.toLowerCase().includes("postgres") ||
+        s.name.toLowerCase().includes("sql")
+    )?.name || "PostgreSQL 16";
+
+  const isPython =
+    backendTech.toLowerCase().includes("python") ||
+    backendTech.toLowerCase().includes("fastapi") ||
+    backendTech.toLowerCase().includes("django");
+
+  const workflow =
+    blueprint.userWorkflow && blueprint.userWorkflow.length > 0
+      ? blueprint.userWorkflow
+      : getDefaultUserWorkflow(title);
+
+  const screenMappings = workflow.map((step) => {
+    let endpoints: string[] = [];
+    let entities: string[] = [];
+    if (step.route === "/" || step.step === 1) {
+      endpoints = ["GET /api/v1/public/showcase", "GET /api/v1/health"];
+      entities = ["telemetry_snapshots"];
+    } else if (step.route === "/auth" || step.step === 2) {
+      endpoints = [
+        "POST /api/v1/auth/register",
+        "POST /api/v1/auth/token",
+        "GET /api/v1/auth/me",
+      ];
+      entities = ["users", "user_sessions"];
+    } else if (step.route === "/dashboard" || step.step === 3) {
+      endpoints = [
+        "GET /api/v1/telemetry/metrics",
+        "GET /api/v1/telemetry/throughput",
+      ];
+      entities = ["telemetry_snapshots", "domain_records"];
+    } else if (step.route === "/workspace" || step.step === 4) {
+      endpoints = [
+        "GET /api/v1/records",
+        "POST /api/v1/records",
+        "GET /api/v1/records/{id}",
+      ];
+      entities = ["domain_records", "audit_logs"];
+    } else {
+      endpoints = [
+        "GET /api/v1/audit/stream",
+        "POST /api/v1/audit/verify",
+        "GET /api/v1/audit/export",
+      ];
+      entities = ["audit_logs"];
+    }
+    return {
+      screen: step.screen,
+      route: step.route,
+      apiEndpoints: endpoints,
+      dbEntities: entities,
+    };
+  });
+
+  const apiRoutes: ApiRouteSpec[] = [
+    {
+      method: "GET",
+      route: "/api/v1/health",
+      screenName: "System Health & Monitor",
+      summary:
+        "Evaluates backend health, database connection pool, and node memory status.",
+      authRequired: false,
+      responsePayload:
+        '{\n  "status": "healthy",\n  "timestamp": "2026-09-19T22:00:00Z",\n  "database": "connected",\n  "version": "1.0.0"\n}',
+      statusCodes: [
+        { code: 200, description: "System operational" },
+        { code: 503, description: "Database unavailable" },
+      ],
+    },
+    {
+      method: "POST",
+      route: "/api/v1/auth/register",
+      screenName: "Authentication & Onboarding (/auth)",
+      summary:
+        "Creates a new user account with hashed password credentials and assigns default student/client role.",
+      authRequired: false,
+      requestPayload:
+        '{\n  "email": "student@university.edu",\n  "password": "SecurePassword123!",\n  "full_name": "Prakhar Sharma",\n  "role": "engineer"\n}',
+      responsePayload:
+        '{\n  "id": "usr_9981a",\n  "email": "student@university.edu",\n  "full_name": "Prakhar Sharma",\n  "role": "engineer",\n  "created_at": "2026-09-19T22:00:00Z"\n}',
+      statusCodes: [
+        { code: 201, description: "Account created successfully" },
+        { code: 409, description: "Email already registered" },
+        { code: 422, description: "Validation error" },
+      ],
+    },
+    {
+      method: "POST",
+      route: "/api/v1/auth/token",
+      screenName: "Authentication & Onboarding (/auth)",
+      summary:
+        "OAuth2 compatible password grant; verifies password hash and returns JWT Bearer access token.",
+      authRequired: false,
+      requestPayload:
+        '{\n  "username": "student@university.edu",\n  "password": "SecurePassword123!"\n}',
+      responsePayload:
+        '{\n  "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",\n  "token_type": "bearer",\n  "expires_in": 3600,\n  "user_id": "usr_9981a"\n}',
+      statusCodes: [
+        { code: 200, description: "Authentication successful" },
+        { code: 401, description: "Invalid credentials" },
+      ],
+    },
+    {
+      method: "GET",
+      route: "/api/v1/auth/me",
+      screenName: "Authentication & Onboarding (/auth)",
+      summary:
+        "Resolves JWT bearer token from Authorization header and returns authenticated user identity.",
+      authRequired: true,
+      responsePayload:
+        '{\n  "id": "usr_9981a",\n  "email": "student@university.edu",\n  "full_name": "Prakhar Sharma",\n  "role": "engineer",\n  "is_active": true\n}',
+      statusCodes: [
+        { code: 200, description: "Authorized user profile" },
+        { code: 401, description: "Token missing or expired" },
+      ],
+    },
+    {
+      method: "GET",
+      route: "/api/v1/telemetry/metrics",
+      screenName: "Main Telemetry Dashboard (/dashboard)",
+      summary:
+        "Aggregates live KPI telemetry, system throughput, and operational status metrics.",
+      authRequired: true,
+      responsePayload:
+        '{\n  "total_records": 1284,\n  "system_throughput_rps": 42.8,\n  "integrity_score_pct": 99.4,\n  "status_summary": "All systems operational",\n  "recent_activity_count": 18\n}',
+      statusCodes: [
+        { code: 200, description: "Telemetry metrics calculated" },
+        { code: 401, description: "Unauthorized" },
+      ],
+    },
+    {
+      method: "GET",
+      route: "/api/v1/records",
+      screenName: "Core Domain Workflow / Registry (/workspace)",
+      summary:
+        "Fetches paginated records for the core project feature with keyword search and category filtering.",
+      authRequired: true,
+      responsePayload:
+        '{\n  "items": [\n    {\n      "id": "rec_01",\n      "title": "Primary Entity Record",\n      "category": "High Priority",\n      "status": "Processed",\n      "created_at": "2026-09-19T21:40:00Z"\n    }\n  ],\n  "total": 42,\n  "page": 1,\n  "limit": 20\n}',
+      statusCodes: [
+        { code: 200, description: "List of records" },
+        { code: 401, description: "Unauthorized" },
+      ],
+    },
+    {
+      method: "POST",
+      route: "/api/v1/records",
+      screenName: "Core Domain Workflow / Registry (/workspace)",
+      summary:
+        "Executes primary project feature: validates payload, applies business logic rules, and records audit trace.",
+      authRequired: true,
+      requestPayload:
+        '{\n  "title": "New System Transaction",\n  "category": "Analysis",\n  "payload": {\n    "input_data": "sample payload",\n    "parameters": {"depth": 3}\n  }\n}',
+      responsePayload:
+        '{\n  "id": "rec_02",\n  "title": "New System Transaction",\n  "status": "Completed",\n  "result": {\n    "computed_score": 94.2,\n    "verified": true\n  },\n  "created_at": "2026-09-19T22:05:00Z"\n}',
+      statusCodes: [
+        { code: 201, description: "Record processed and stored" },
+        { code: 400, description: "Invalid payload input" },
+        { code: 401, description: "Unauthorized" },
+      ],
+    },
+    {
+      method: "GET",
+      route: "/api/v1/audit/stream",
+      screenName: "Audit, Reviews & Compliance (/audit)",
+      summary:
+        "Retrieves the immutable audit trail of state changes and cryptographic signatures for inspection.",
+      authRequired: true,
+      responsePayload:
+        '{\n  "audit_events": [\n    {\n      "id": "aud_101",\n      "action_type": "RECORD_PROCESSED",\n      "entity_id": "rec_02",\n      "signature_hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",\n      "created_at": "2026-09-19T22:05:01Z"\n    }\n  ]\n}',
+      statusCodes: [
+        { code: 200, description: "Audit trail stream" },
+        { code: 401, description: "Unauthorized" },
+      ],
+    },
+    {
+      method: "POST",
+      route: "/api/v1/audit/verify",
+      screenName: "Audit, Reviews & Compliance (/audit)",
+      summary:
+        "Verifies the cryptographic signature hash of a recorded action to guarantee zero tampering.",
+      authRequired: true,
+      requestPayload:
+        '{\n  "event_id": "aud_101",\n  "expected_hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"\n}',
+      responsePayload:
+        '{\n  "verified": true,\n  "tamper_detected": false,\n  "algorithm": "SHA-256",\n  "timestamp": "2026-09-19T22:05:01Z"\n}',
+      statusCodes: [
+        { code: 200, description: "Signature verification outcome" },
+        { code: 404, description: "Event ID not found" },
+      ],
+    },
+  ];
+
+  const rawSqlDdl = `-- ============================================================================
+-- PRODUCTION RELATIONAL DATABASE SCHEMA: ${title.toUpperCase()}
+-- Generated by Yaduk Architecture Engine (${dbTech})
+-- ============================================================================
+
+-- Extensions
+CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+CREATE EXTENSION IF NOT EXISTS "pgcrypto";
+
+-- 1. USERS TABLE
+CREATE TABLE IF NOT EXISTS users (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    email VARCHAR(255) NOT NULL UNIQUE,
+    hashed_password VARCHAR(255) NOT NULL,
+    full_name VARCHAR(150) NOT NULL,
+    role VARCHAR(50) NOT NULL DEFAULT 'engineer',
+    is_active BOOLEAN NOT NULL DEFAULT TRUE,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
+
+-- 2. USER SESSIONS TABLE
+CREATE TABLE IF NOT EXISTS user_sessions (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    token_jti VARCHAR(255) NOT NULL UNIQUE,
+    ip_address VARCHAR(45),
+    expires_at TIMESTAMPTZ NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_sessions_user_id ON user_sessions(user_id);
+CREATE INDEX IF NOT EXISTS idx_sessions_jti ON user_sessions(token_jti);
+
+-- 3. DOMAIN WORKSPACE RECORDS TABLE
+CREATE TABLE IF NOT EXISTS domain_records (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    title VARCHAR(255) NOT NULL,
+    category VARCHAR(100) NOT NULL,
+    status VARCHAR(50) NOT NULL DEFAULT 'Pending',
+    payload JSONB NOT NULL DEFAULT '{}'::jsonb,
+    result JSONB NOT NULL DEFAULT '{}'::jsonb,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_domain_records_user_id ON domain_records(user_id);
+CREATE INDEX IF NOT EXISTS idx_domain_records_status ON domain_records(status);
+CREATE INDEX IF NOT EXISTS idx_domain_records_payload ON domain_records USING GIN(payload);
+
+-- 4. TELEMETRY SNAPSHOTS TABLE
+CREATE TABLE IF NOT EXISTS telemetry_snapshots (
+    id BIGSERIAL PRIMARY KEY,
+    metric_name VARCHAR(100) NOT NULL,
+    metric_value NUMERIC(12, 4) NOT NULL,
+    change_pct NUMERIC(6, 2) DEFAULT 0.0,
+    recorded_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_telemetry_name_time ON telemetry_snapshots(metric_name, recorded_at DESC);
+
+-- 5. AUDIT LOGS TABLE
+CREATE TABLE IF NOT EXISTS audit_logs (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    record_id UUID REFERENCES domain_records(id) ON DELETE SET NULL,
+    user_id UUID REFERENCES users(id) ON DELETE SET NULL,
+    action_type VARCHAR(100) NOT NULL,
+    signature_hash VARCHAR(64) NOT NULL,
+    metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_audit_record_id ON audit_logs(record_id);
+CREATE INDEX IF NOT EXISTS idx_audit_created_at ON audit_logs(created_at DESC);
+`;
+
+  const tables: DatabaseTableSpec[] = [
+    {
+      tableName: "users",
+      description:
+        "Stores client & developer user credentials, role allocations, and security flags.",
+      columns: [
+        {
+          name: "id",
+          type: "UUID",
+          isPrimary: true,
+          description: "Unique identifier (gen_random_uuid)",
+        },
+        {
+          name: "email",
+          type: "VARCHAR(255)",
+          nullable: false,
+          description: "Unique client email address",
+        },
+        {
+          name: "hashed_password",
+          type: "VARCHAR(255)",
+          nullable: false,
+          description: "Bcrypt/Argon2 password digest",
+        },
+        {
+          name: "full_name",
+          type: "VARCHAR(150)",
+          nullable: false,
+          description: "Full student/client name",
+        },
+        {
+          name: "role",
+          type: "VARCHAR(50)",
+          nullable: false,
+          description: "Role-based access role ('engineer', 'admin')",
+        },
+        {
+          name: "is_active",
+          type: "BOOLEAN",
+          nullable: false,
+          description: "Account status toggle",
+        },
+        {
+          name: "created_at",
+          type: "TIMESTAMPTZ",
+          nullable: false,
+          description: "Timestamp of record creation",
+        },
+      ],
+      indexes: ["idx_users_email (UNIQUE)"],
+    },
+    {
+      tableName: "user_sessions",
+      description:
+        "Maintains active JWT token identification (JTI) for token revocation and single-sign-on validation.",
+      columns: [
+        {
+          name: "id",
+          type: "UUID",
+          isPrimary: true,
+          description: "Session identifier",
+        },
+        {
+          name: "user_id",
+          type: "UUID",
+          isForeign: true,
+          references: "users(id)",
+          nullable: false,
+          description: "Foreign key reference to user",
+        },
+        {
+          name: "token_jti",
+          type: "VARCHAR(255)",
+          nullable: false,
+          description: "Unique JWT identifier",
+        },
+        {
+          name: "expires_at",
+          type: "TIMESTAMPTZ",
+          nullable: false,
+          description: "Token expiry timestamp",
+        },
+        {
+          name: "created_at",
+          type: "TIMESTAMPTZ",
+          nullable: false,
+          description: "Login timestamp",
+        },
+      ],
+      indexes: ["idx_sessions_user_id", "idx_sessions_jti"],
+    },
+    {
+      tableName: "domain_records",
+      description:
+        "Core project transaction entity holding input form payloads and computed domain results.",
+      columns: [
+        {
+          name: "id",
+          type: "UUID",
+          isPrimary: true,
+          description: "Record identifier",
+        },
+        {
+          name: "user_id",
+          type: "UUID",
+          isForeign: true,
+          references: "users(id)",
+          nullable: false,
+          description: "Author / owner user",
+        },
+        {
+          name: "title",
+          type: "VARCHAR(255)",
+          nullable: false,
+          description: "Record or item name",
+        },
+        {
+          name: "category",
+          type: "VARCHAR(100)",
+          nullable: false,
+          description: "Grouping or classification tag",
+        },
+        {
+          name: "status",
+          type: "VARCHAR(50)",
+          nullable: false,
+          description: "Workflow state ('Pending', 'Processed', 'Failed')",
+        },
+        {
+          name: "payload",
+          type: "JSONB",
+          nullable: false,
+          description: "Dynamic JSON input attributes",
+        },
+        {
+          name: "result",
+          type: "JSONB",
+          nullable: false,
+          description: "Processed domain results & analytics",
+        },
+        {
+          name: "created_at",
+          type: "TIMESTAMPTZ",
+          nullable: false,
+          description: "Creation timestamp",
+        },
+      ],
+      indexes: [
+        "idx_domain_records_user_id",
+        "idx_domain_records_status",
+        "idx_domain_records_payload (GIN)",
+      ],
+    },
+    {
+      tableName: "telemetry_snapshots",
+      description:
+        "High-frequency metric capture for dashboard telemetry, KPI cards, and throughput graphs.",
+      columns: [
+        {
+          name: "id",
+          type: "BIGSERIAL",
+          isPrimary: true,
+          description: "Sequential autoincrement ID",
+        },
+        {
+          name: "metric_name",
+          type: "VARCHAR(100)",
+          nullable: false,
+          description: "e.g. throughput_rps, active_jobs",
+        },
+        {
+          name: "metric_value",
+          type: "NUMERIC(12,4)",
+          nullable: false,
+          description: "Calculated numeric value",
+        },
+        {
+          name: "change_pct",
+          type: "NUMERIC(6,2)",
+          nullable: true,
+          description: "Percentage shift over baseline",
+        },
+        {
+          name: "recorded_at",
+          type: "TIMESTAMPTZ",
+          nullable: false,
+          description: "Telemetry timestamp",
+        },
+      ],
+      indexes: ["idx_telemetry_name_time"],
+    },
+    {
+      tableName: "audit_logs",
+      description:
+        "Append-only cryptographic event log providing proof-of-work and state change auditability.",
+      columns: [
+        {
+          name: "id",
+          type: "UUID",
+          isPrimary: true,
+          description: "Log event identifier",
+        },
+        {
+          name: "record_id",
+          type: "UUID",
+          isForeign: true,
+          references: "domain_records(id)",
+          nullable: true,
+          description: "Target entity ID",
+        },
+        {
+          name: "user_id",
+          type: "UUID",
+          isForeign: true,
+          references: "users(id)",
+          nullable: true,
+          description: "Actor user ID",
+        },
+        {
+          name: "action_type",
+          type: "VARCHAR(100)",
+          nullable: false,
+          description:
+            "Action event ('RECORD_CREATED', 'AUDIT_VERIFIED')",
+        },
+        {
+          name: "signature_hash",
+          type: "VARCHAR(64)",
+          nullable: false,
+          description: "SHA-256 cryptographic signature",
+        },
+        {
+          name: "metadata",
+          type: "JSONB",
+          nullable: false,
+          description: "Additional contextual telemetry",
+        },
+        {
+          name: "created_at",
+          type: "TIMESTAMPTZ",
+          nullable: false,
+          description: "Timestamp of event",
+        },
+      ],
+      indexes: ["idx_audit_record_id", "idx_audit_created_at"],
+    },
+  ];
+
+  const services: BackendServiceSpec[] = [
+    {
+      name: "Auth & Identity Service",
+      purpose:
+        "Manages password cryptography, JWT issuance, session validation, and user role authorization.",
+      responsibilities: [
+        "Hashes raw passwords using bcrypt with salt rounds = 12",
+        "Signs and validates JWT access tokens using HS256 / RS256",
+        "Injects authenticated user payload into route dependencies",
+      ],
+      associatedRoutes: [
+        "/api/v1/auth/register",
+        "/api/v1/auth/token",
+        "/api/v1/auth/me",
+      ],
+    },
+    {
+      name: "Telemetry & Metrics Aggregator",
+      purpose:
+        "Polls and calculates real-time system performance, query throughput, and KPI metrics.",
+      responsibilities: [
+        "Aggregates total record counts and health status flags",
+        "Calculates throughput trends for live dashboard charts",
+        "Dispatches health check status for load balancers",
+      ],
+      associatedRoutes: [
+        "/api/v1/health",
+        "/api/v1/telemetry/metrics",
+        "/api/v1/public/showcase",
+      ],
+    },
+    {
+      name: "Core Domain Workflow Engine",
+      purpose:
+        "Executes business logic, transactional validations, and writes processed results to the database.",
+      responsibilities: [
+        "Validates input request payloads against strict Pydantic / Zod schemas",
+        "Executes transactional database writes with ACID guarantees",
+        "Emits post-execution events to the audit service",
+      ],
+      associatedRoutes: ["/api/v1/records", "/api/v1/records/{id}"],
+    },
+    {
+      name: "Audit & Cryptographic Security Service",
+      purpose:
+        "Maintains tamper-evident append-only log and computes cryptographic SHA-256 signatures.",
+      responsibilities: [
+        "Computes deterministic SHA-256 hash digests of domain transactions",
+        "Provides integrity verification endpoint to prove data has not been altered",
+        "Streams audit event history in JSON and CSV formats for external evaluation",
+      ],
+      associatedRoutes: [
+        "/api/v1/audit/stream",
+        "/api/v1/audit/verify",
+        "/api/v1/audit/export",
+      ],
+    },
+  ];
+
+  const environmentVariables = [
+    {
+      key: "DATABASE_URL",
+      example: "postgresql://postgres:postgres@localhost:5432/yaduk_db",
+      purpose: "Relational database connection string with credentials",
+    },
+    {
+      key: "SECRET_KEY",
+      example: "prod_sec_99a81b2c4d5e6f7a8b9c0d1e2f3a4b5c",
+      purpose:
+        "Cryptographic secret used for signing JWT tokens and session cookies",
+    },
+    {
+      key: "API_V1_PREFIX",
+      example: "/api/v1",
+      purpose: "Base routing prefix for all REST API endpoints",
+    },
+    {
+      key: "ENVIRONMENT",
+      example: "development",
+      purpose: "Runtime mode ('development', 'staging', 'production')",
+    },
+    {
+      key: "ACCESS_TOKEN_EXPIRE_MINUTES",
+      example: "60",
+      purpose: "Lifespan of issued JWT Bearer tokens before refresh required",
+    },
+    {
+      key: "CORS_ORIGINS",
+      example: "http://localhost:3000,http://localhost:5173",
+      purpose: "Allowed frontend origin URLs for browser cross-origin requests",
+    },
+  ];
+
+  const markdownSpec = `# Backend Architecture & System Contract
+**Project:** ${title}  
+**Backend Framework:** ${backendTech}  
+**Database Engine:** ${dbTech}  
+**Architecture Pattern:** Modular REST API with Service-Repository Pattern  
+
+---
+
+## 1. Application Screen-to-API Mapping
+${screenMappings
+  .map(
+    (s) =>
+      `- **${s.screen}** (\`${s.route}\`)\n  - Endpoints: ${s.apiEndpoints.map((e) => `\`${e}\``).join(", ")}\n  - Database Entities: ${s.dbEntities.map((e) => `\`${e}\``).join(", ")}`
+  )
+  .join("\n\n")}
+
+---
+
+## 2. REST API Route Specifications
+${apiRoutes
+  .map(
+    (r) => `### \`${r.method}\` ${r.route}
+* **Screen:** ${r.screenName}
+* **Summary:** ${r.summary}
+* **Authentication:** ${r.authRequired ? "🔒 Required (Bearer JWT)" : "🌐 Public"}
+${r.requestPayload ? `* **Request Payload:**\n\`\`\`json\n${r.requestPayload}\n\`\`\`` : ""}
+* **Response Payload:**
+\`\`\`json
+${r.responsePayload}
+\`\`\`
+`
+  )
+  .join("\n")}
+
+---
+
+## 3. Database Schema & Production DDL
+\`\`\`sql
+${rawSqlDdl}
+\`\`\`
+
+---
+
+## 4. Backend Service Modules
+${services
+  .map(
+    (srv) => `### ${srv.name}
+* **Purpose:** ${srv.purpose}
+* **Responsibilities:**
+${srv.responsibilities.map((resp) => `  - ${resp}`).join("\n")}
+* **Routes:** ${srv.associatedRoutes.map((rt) => `\`${rt}\``).join(", ")}
+`
+  )
+  .join("\n")}
+
+---
+
+## 5. Environment Configuration (.env)
+\`\`\`env
+${environmentVariables.map((ev) => `${ev.key}=${ev.example}`).join("\n")}
+\`\`\`
+`;
+
+  return {
+    title,
+    framework: backendTech,
+    databaseEngine: dbTech,
+    architecturePattern: isPython
+      ? "FastAPI Modular Architecture (Routers, Pydantic Schemas, SQLAlchemy ORM, Service Layer)"
+      : "Modular REST API Architecture (Express Controllers, Zod Schemas, Prisma ORM, Domain Services)",
+    screenMappings,
+    apiRoutes,
+    databaseSchema: {
+      overview: `Relational schema normalized to 3NF targeting ${dbTech}, featuring ACID compliance and foreign key cascade protection.`,
+      tables,
+      rawSqlDdl,
+    },
+    services,
+    securitySpec: {
+      authStrategy:
+        "OAuth2 Password Grant with JWT Bearer tokens in Authorization header",
+      tokenExpiry: "60 minutes with rolling refresh",
+      passwordHashing: "Bcrypt (salt rounds = 12) / Argon2id",
+      rbacDescription:
+        "Role-based access control with standard 'engineer' and administrative roles.",
+    },
+    environmentVariables,
+    markdownSpec,
+  };
+}
+
+export const generateBackendContract = createServerFn({ method: "POST" })
+  .inputValidator(
+    (data: {
+      profile: StudentProfile;
+      blueprint: Blueprint;
+      theme?: string;
+    }) => data
+  )
+  .handler(async ({ data }) => {
+    const fallback = generateBackendContractFallback(data.blueprint, data.profile);
+
+    try {
+      const prompt = `${profileBlock(data.profile)}
+
+FINALIZED BLUEPRINT:
+${JSON.stringify(data.blueprint)}
+
+SELECTED DESIGN SYSTEM THEME: "${data.theme || "Modern"}"
+
+You are the Principal Backend Architect & Database Administrator.
+Analyze the 5 User Workflow Screens (${data.blueprint.userWorkflow?.map((w) => `${w.screen} [${w.route}]`).join(", ") || "Landing, Auth, Dashboard, Workspace, Audit"}), MVP features, and selected stack.
+Synthesize the complete, production-grade Backend Architecture & System Contract Document.
+Requirements:
+1. Mappings connecting each user workflow screen to specific backend API endpoints and database entities.
+2. Complete REST API route specifications with HTTP methods, route paths, auth requirement, request JSON, response JSON, and status codes.
+3. Complete SQL DDL with CREATE TABLE statements, UUID primary keys, foreign keys with ON DELETE CASCADE, constraints, and performance indexes.
+4. Structured database tables metadata.
+5. Domain service modules and business logic responsibilities.
+6. Security and JWT specification.
+7. Environment variables list.
+8. Full formatted markdown specification document.
+
+JSON Shape:
+{
+  "title": "${data.blueprint.title || "Production Platform"}",
+  "framework": "${fallback.framework}",
+  "databaseEngine": "${fallback.databaseEngine}",
+  "architecturePattern": "${fallback.architecturePattern}",
+  "screenMappings": [
+    {
+      "screen": "Screen Name",
+      "route": "/route",
+      "apiEndpoints": ["GET /api/v1/..."],
+      "dbEntities": ["users"]
+    }
+  ],
+  "apiRoutes": [
+    {
+      "method": "GET",
+      "route": "/api/v1/...",
+      "screenName": "Screen Name",
+      "summary": "1-sentence summary",
+      "authRequired": true,
+      "requestPayload": "{\\"field\\": \\"string\\"}",
+      "responsePayload": "{\\"status\\": \\"ok\\"}",
+      "statusCodes": [{"code": 200, "description": "OK"}]
+    }
+  ],
+  "databaseSchema": {
+    "overview": "Summary of relational schema",
+    "tables": [
+      {
+        "tableName": "users",
+        "description": "Table summary",
+        "columns": [
+          {"name": "id", "type": "UUID", "isPrimary": true, "description": "Primary key"}
+        ],
+        "indexes": ["idx_..."]
+      }
+    ],
+    "rawSqlDdl": "CREATE TABLE ...;"
+  },
+  "services": [
+    {
+      "name": "Service Name",
+      "purpose": "Purpose",
+      "responsibilities": ["Task 1", "Task 2"],
+      "associatedRoutes": ["/api/v1/..."]
+    }
+  ],
+  "securitySpec": {
+    "authStrategy": "OAuth2 / JWT Bearer",
+    "tokenExpiry": "60 minutes",
+    "passwordHashing": "Bcrypt",
+    "rbacDescription": "Role based access"
+  },
+  "environmentVariables": [
+    {"key": "DATABASE_URL", "example": "postgresql://...", "purpose": "Connection string"}
+  ],
+  "markdownSpec": "# Full Markdown..."
+}`;
+
+      const res = await generateJson<BackendContractDoc>({
+        system:
+          "You are Yaduk, Principal Backend Architect and Database Designer. " +
+          "You produce concrete, rigorous, production-grade technical contracts with real SQL DDL and JSON schemas.",
+        prompt,
+        agentName: "Yaduk Backend Contract Architect",
+      });
+
+      if (
+        res?.apiRoutes &&
+        res.apiRoutes.length > 0 &&
+        res.databaseSchema?.rawSqlDdl &&
+        res.screenMappings &&
+        res.screenMappings.length > 0
+      ) {
+        return {
+          ...fallback,
+          ...res,
+          title: res.title || fallback.title,
+          framework: res.framework || fallback.framework,
+          databaseEngine: res.databaseEngine || fallback.databaseEngine,
+          markdownSpec: res.markdownSpec || fallback.markdownSpec,
+        };
+      }
+    } catch (err) {
+      console.warn("generateBackendContract API call error, falling back to local synthesizer:", err);
+    }
+
+    return fallback;
   });
 
 

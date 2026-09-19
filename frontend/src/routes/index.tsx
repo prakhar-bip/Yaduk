@@ -14,6 +14,7 @@ import { PlanChangeBar } from "@/components/quest/PlanChangeBar";
 import { ProfileCard } from "@/components/quest/ProfileCard";
 import { PrototypeSandbox } from "@/components/quest/PrototypeSandbox";
 import { ThemeSelection } from "@/components/quest/ThemeSelection";
+import { BackendContractView } from "@/components/quest/BackendContractView";
 import { QuestHud } from "@/components/quest/QuestHud";
 import { QuestScrollPanel } from "@/components/quest/QuestScroll";
 import { useJourney } from "@/lib/journey";
@@ -25,6 +26,8 @@ import {
   analyzeFeasibility,
   applyBlueprintChangeFallback,
   buildProfile,
+  generateBackendContract,
+  generateBackendContractFallback,
   generateBlueprint,
   generateBlueprintScrollFallback,
   generateIdeas,
@@ -33,7 +36,14 @@ import {
   summarizeBlueprint,
   updateBlueprint,
 } from "@/lib/quest.functions";
-import type { Blueprint, ProjectIdea, QuestScroll, StudentProfile, Stage } from "@/lib/types";
+import type {
+  BackendContractDoc,
+  Blueprint,
+  ProjectIdea,
+  QuestScroll,
+  StudentProfile,
+  Stage,
+} from "@/lib/types";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -329,6 +339,7 @@ function Home() {
   const doBlueprint = useServerFn(generateBlueprint);
   const doUpdateBlueprint = useServerFn(updateBlueprint);
   const doSummarize = useServerFn(summarizeBlueprint);
+  const doGenerateBackendContract = useServerFn(generateBackendContract);
   const doGeneratePrototype = useServerFn(generatePrototype);
 
   const selected = state.ideas.find((i) => i.id === state.selectedIdeaId) ?? null;
@@ -583,6 +594,43 @@ function Home() {
     }
   }
 
+  async function handleGenerateBackendContract(selectedTheme?: string) {
+    if (!state.blueprint) {
+      toast.error("Please create a blueprint first before generating backend specifications.");
+      return;
+    }
+    const theme = selectedTheme || state.selectedTheme || "neo-brutalism";
+    setBusy(`Synthesizing Backend Architecture & Database Contract for ${state.blueprint.title}...`);
+    try {
+      let contract: BackendContractDoc | null = null;
+      try {
+        contract = await doGenerateBackendContract({
+          data: { profile: effectiveProfile, blueprint: state.blueprint, theme },
+        });
+      } catch (err) {
+        console.warn("Backend contract generation error, falling back to local synthesizer:", err);
+        contract = generateBackendContractFallback(state.blueprint, effectiveProfile);
+      }
+
+      if (!contract) {
+        contract = generateBackendContractFallback(state.blueprint, effectiveProfile);
+      }
+
+      update({
+        backendContract: contract,
+        profile: effectiveProfile,
+        selectedTheme: theme,
+        stage: "contract",
+      });
+      award(150, "engineer");
+      toast.success("Backend Architecture & System Contract ready!");
+    } catch (e) {
+      fail(e);
+    } finally {
+      setBusy(null);
+    }
+  }
+
   async function handleGeneratePrototype(selectedTheme?: string) {
     if (!state.blueprint) {
       toast.error("Please create a blueprint first before generating a prototype.");
@@ -658,12 +706,29 @@ function Home() {
       update({ stage: "theme" });
       return;
     }
+    if (targetStage === "contract") {
+      if (!state.blueprint) {
+        toast.info("Please create your blueprint first.");
+        return;
+      }
+      if (!state.backendContract) {
+        void handleGenerateBackendContract();
+        return;
+      }
+      setBusy(null);
+      update({ stage: "contract" });
+      return;
+    }
     if (targetStage === "prototype") {
       if (!state.prototype) {
-        if (state.blueprint) {
+        if (state.backendContract) {
+          setBusy(null);
+          update({ stage: "contract" });
+          toast.info("Inspect your backend architecture contract first before generating code.");
+        } else if (state.blueprint) {
           setBusy(null);
           update({ stage: "theme" });
-          toast.info("Select a design theme first to generate your prototype.");
+          toast.info("Select a design theme first to generate your contract.");
         } else {
           toast.info("Please create your project blueprint first.");
         }
@@ -802,11 +867,38 @@ function Home() {
               profile={state.profile || effectiveProfile}
               onSelectTheme={(theme) => {
                 award(100, "stylist");
-                void handleGeneratePrototype(theme);
+                void handleGenerateBackendContract(theme);
               }}
               onBack={() => {
                 setBusy(null);
                 update({ stage: "blueprint" });
+              }}
+              isGenerating={Boolean(busy)}
+            />
+            <MentorDock
+              profile={state.profile || effectiveProfile}
+              blueprint={state.blueprint}
+              askSeed={askSeed}
+              open={dockOpen}
+              onToggle={setDockOpen}
+              onAsked={() => award(40, "apprentice")}
+            />
+          </div>
+        )}
+
+        {showQuest && !busy && state.stage === "contract" && state.backendContract && state.blueprint && (
+          <div className="space-y-6">
+            <BackendContractView
+              contract={state.backendContract}
+              blueprint={state.blueprint}
+              profile={state.profile || effectiveProfile}
+              selectedTheme={state.selectedTheme}
+              onBackToTheme={() => {
+                setBusy(null);
+                update({ stage: "theme" });
+              }}
+              onProceedToPrototype={() => {
+                void handleGeneratePrototype(state.selectedTheme);
               }}
               isGenerating={Boolean(busy)}
             />

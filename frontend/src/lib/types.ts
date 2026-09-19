@@ -97,6 +97,7 @@ export type Stage =
   | "feasibility"
   | "blueprint"
   | "theme"
+  | "contract"
   | "prototype"
   | "mentor";
 
@@ -199,6 +200,73 @@ export type PrototypeData = {
   productionCodebase?: ProductionCodebase;
 };
 
+export type ApiRouteSpec = {
+  method: "GET" | "POST" | "PUT" | "DELETE" | "PATCH";
+  route: string;
+  screenName: string;
+  summary: string;
+  authRequired: boolean;
+  requestPayload?: string;
+  responsePayload?: string;
+  statusCodes?: { code: number; description: string }[];
+};
+
+export type DatabaseColumnSpec = {
+  name: string;
+  type: string;
+  isPrimary?: boolean;
+  isForeign?: boolean;
+  references?: string;
+  nullable?: boolean;
+  description?: string;
+};
+
+export type DatabaseTableSpec = {
+  tableName: string;
+  description: string;
+  columns: DatabaseColumnSpec[];
+  indexes?: string[];
+};
+
+export type BackendServiceSpec = {
+  name: string;
+  purpose: string;
+  responsibilities: string[];
+  associatedRoutes: string[];
+};
+
+export type BackendContractDoc = {
+  title: string;
+  framework: string;
+  databaseEngine: string;
+  architecturePattern: string;
+  screenMappings: {
+    screen: string;
+    route: string;
+    apiEndpoints: string[];
+    dbEntities: string[];
+  }[];
+  apiRoutes: ApiRouteSpec[];
+  databaseSchema: {
+    overview: string;
+    tables: DatabaseTableSpec[];
+    rawSqlDdl: string;
+  };
+  services: BackendServiceSpec[];
+  securitySpec: {
+    authStrategy: string;
+    tokenExpiry: string;
+    passwordHashing: string;
+    rbacDescription?: string;
+  };
+  environmentVariables: {
+    key: string;
+    example: string;
+    purpose: string;
+  }[];
+  markdownSpec: string;
+};
+
 export type JourneyState = {
   stage: Stage;
   profile: StudentProfile | null;
@@ -208,6 +276,7 @@ export type JourneyState = {
   feasibility: Feasibility | null;
   blueprint: Blueprint | null;
   selectedTheme?: string;
+  backendContract?: BackendContractDoc | null;
   scroll: QuestScroll | null;
   prototype: PrototypeData | null;
   changeLog: string[];
@@ -224,6 +293,7 @@ export const emptyJourney: JourneyState = {
   feasibility: null,
   blueprint: null,
   selectedTheme: undefined,
+  backendContract: null,
   scroll: null,
   prototype: null,
   changeLog: [],
@@ -238,6 +308,7 @@ export const BADGES: Record<string, { label: string; hint: string }> = {
   realist: { label: "Checked", hint: "Ran a reality check on your project" },
   architect: { label: "Plan", hint: "Unlocked your full project plan" },
   stylist: { label: "Theme", hint: "Crafted the visual identity of your software" },
+  engineer: { label: "Contract", hint: "Inspected and locked the backend API & database contracts" },
   builder: { label: "Prototype", hint: "Manifested your interactive software prototype" },
   apprentice: { label: "Mentor", hint: "Talked things through with your mentor" },
   shipwright: { label: "Updated", hint: "Updated the plan after a mentor chat" },
