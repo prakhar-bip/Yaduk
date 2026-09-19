@@ -1732,6 +1732,7 @@ export function generateProjectSetupFallback(
       { name: "fastapi", version: ">=0.111.0", purpose: "High-performance asynchronous REST API framework", category: "core" },
       { name: "uvicorn[standard]", version: ">=0.30.0", purpose: "Lightning-fast ASGI production web server", category: "core" },
       { name: "pydantic", version: ">=2.7.0", purpose: "Pydantic v2 data validation and response schemas", category: "core" },
+      { name: "pydantic-settings", version: ">=2.3.0", purpose: "Application settings management from environment variables", category: "core" },
       { name: "sqlalchemy", version: ">=2.0.30", purpose: "SQLAlchemy 2.0 async ORM and query builder", category: "database" },
       { name: "asyncpg", version: ">=0.29.0", purpose: "Fast asynchronous PostgreSQL database driver", category: "database" },
       { name: "python-jose[cryptography]", version: ">=3.3.0", purpose: "JWT cryptographic signing and verification", category: "auth" },
@@ -1759,6 +1760,7 @@ export function generateProjectSetupFallback(
       { name: "axios", version: "^1.7.2", purpose: "Promise-based HTTP client for API endpoints", category: "utility" },
       { name: "lucide-vue-next", version: "^0.395.0", purpose: "Clean modern SVG icon set", category: "utility" },
       { name: "tailwindcss", version: "^3.4.4", purpose: "Utility-first CSS styling framework", category: "core" },
+      { name: "@vitejs/plugin-vue", version: "^5.0.5", purpose: "Vite Vue Single File Component plugin", isDev: true, category: "core" },
       { name: "vite", version: "^5.3.1", purpose: "Next-generation frontend dev server & bundler", isDev: true, category: "core" },
       { name: "typescript", version: "^5.5.2", purpose: "TypeScript compiler & type checking", isDev: true, category: "testing" },
     ];
@@ -1773,9 +1775,11 @@ export function generateProjectSetupFallback(
       { name: "clsx", version: "^2.1.1", purpose: "Utility for conditionally constructing className strings", category: "utility" },
       { name: "tailwind-merge", version: "^2.3.0", purpose: "Conflict-free Tailwind class merge utility", category: "utility" },
       { name: "@tanstack/react-router", version: "^1.35.0", purpose: "Type-safe client routing and deep-linking", category: "core" },
+      { name: "@vitejs/plugin-react", version: "^4.3.1", purpose: "Fast React HMR plugin for Vite", isDev: true, category: "core" },
       { name: "vite", version: "^5.3.1", purpose: "Sub-second HMR frontend bundler", isDev: true, category: "core" },
       { name: "typescript", version: "^5.5.2", purpose: "Strict type safety checking across all components", isDev: true, category: "testing" },
       { name: "@types/react", version: "^19.0.0", purpose: "React TypeScript type declarations", isDev: true, category: "testing" },
+      { name: "@types/react-dom", version: "^19.0.0", purpose: "React DOM TypeScript type declarations", isDev: true, category: "testing" },
       { name: "@tailwindcss/vite", version: "^4.0.0", purpose: "Tailwind CSS Vite compiler integration", isDev: true, category: "core" },
     ];
   }
@@ -2002,13 +2006,34 @@ export function generateBackendEngineFallback(
       layer: "backend",
     },
     {
+      path: "backend/app/models.py",
+      language: "python",
+      description: "SQLAlchemy ORM models mapped to database schema",
+      code: `from sqlalchemy import Column, String, Integer, Float, Boolean, DateTime, Text, ForeignKey\nfrom sqlalchemy.sql import func\nfrom backend.app.database import Base\n\nclass AuditLog(Base):\n    __tablename__ = "audit_logs"\n\n    id = Column(String(36), primary_key=True, index=True)\n    action = Column(String(255), nullable=False)\n    actor = Column(String(255), nullable=True)\n    details = Column(Text, nullable=True)\n    created_at = Column(DateTime(timezone=True), server_default=func.now())\n`,
+      layer: "backend",
+    },
+    {
+      path: "backend/app/routers/api.py",
+      language: "python",
+      description: "FastAPI APIRouter containing feature endpoints",
+      code: `from fastapi import APIRouter, Depends, HTTPException, status\nfrom typing import List, Any\nfrom backend.app.schemas import HealthResponse, GenericItemResponse, GenericItemCreate\n\nrouter = APIRouter(tags=["API Operations"])\n\n@router.get("/health", response_model=HealthResponse)\nasync def health_check():\n    return HealthResponse()\n\n${contract.apiRoutes.map((r, i) => {
+        const fnName = r.route.replace(/[^a-zA-Z0-9]+/g, "_").replace(/^_+|_+$/g, "");
+        return `@router.${r.method.toLowerCase()}("${r.route.replace(/^(\/api\/v1)?/, "") || "/"}", tags=["${r.screenName}"])\nasync def ${fnName}_${i}():\n    """${r.summary}"""\n    return ${r.responsePayload || `{"status": "ok", "message": "${r.summary}"}`}\n`;
+      }).join("\n")}\n`,
+      layer: "backend",
+    },
+    {
+      path: "backend/Dockerfile",
+      language: "dockerfile",
+      description: "Docker build specification for backend server container",
+      code: `FROM python:3.11-slim\nWORKDIR /app\nCOPY backend/requirements.txt .\nRUN pip install --no-cache-dir -r requirements.txt\nCOPY backend/ ./backend/\nEXPOSE 8000\nCMD ["uvicorn", "backend.app.main:app", "--host", "0.0.0.0", "--port", "8000"]\n`,
+      layer: "backend",
+    },
+    {
       path: "backend/app/main.py",
       language: "python",
       description: "FastAPI server entry point with CORS and API router mounting",
-      code: `from fastapi import FastAPI, Depends\nfrom fastapi.middleware.cors import CORSMiddleware\nfrom backend.app.config import settings\nfrom backend.app.schemas import HealthResponse\n\napp = FastAPI(\n    title=settings.APP_NAME,\n    version="1.0.0",\n    description="Autonomous production API for ${title}"\n)\n\napp.add_middleware(\n    CORSMiddleware,\n    allow_origins=["*"],\n    allow_credentials=True,\n    allow_methods=["*"],\n    allow_headers=["*"],\n)\n\n@app.get("/api/v1/health", response_model=HealthResponse, tags=["System"])\nasync def health_check():\n    return HealthResponse()\n\n${contract.apiRoutes.map((r, i) => {
-        const fnName = r.route.replace(/[^a-zA-Z0-9]+/g, "_").replace(/^_+|_+$/g, "");
-        return `@app.${r.method.toLowerCase()}("${r.route}", tags=["${r.screenName}"])\nasync def ${fnName}_${i}():\n    """${r.summary}"""\n    return ${r.responsePayload || `{"status": "ok", "message": "${r.summary}"}`}\n`;
-      }).join("\n")}\n`,
+      code: `from fastapi import FastAPI\nfrom fastapi.middleware.cors import CORSMiddleware\nfrom backend.app.config import settings\nfrom backend.app.schemas import HealthResponse\nfrom backend.app.routers.api import router as api_router\n\napp = FastAPI(\n    title=settings.APP_NAME,\n    version="1.0.0",\n    description="Autonomous production API for ${title}"\n)\n\napp.add_middleware(\n    CORSMiddleware,\n    allow_origins=["*"],\n    allow_credentials=True,\n    allow_methods=["*"],\n    allow_headers=["*"],\n)\n\napp.include_router(api_router, prefix="/api/v1")\n\n@app.get("/health", response_model=HealthResponse, tags=["System"])\nasync def root_health():\n    return HealthResponse()\n`,
       layer: "backend",
     },
     {
@@ -2108,8 +2133,12 @@ Begin generating backend files now:`;
       });
 
       const parsed = parseDelimitedCodeFiles(codeText);
-      if (parsed.length >= 4) {
-        return parsed;
+      if (parsed.length >= 2) {
+        // Merge AI-generated files on top of fallback files so no baseline config is ever lost
+        const fileMap = new Map<string, GeneratedCodeFile>();
+        fallback.forEach((f) => fileMap.set(f.path, f));
+        parsed.forEach((f) => fileMap.set(f.path, f));
+        return Array.from(fileMap.values());
       }
     } catch (err) {
       console.warn("generateBackendEngine error, falling back to local synthesizer:", err);
@@ -2204,6 +2233,36 @@ export function generateFrontendEngineFallback(
       layer: "frontend",
     },
     {
+      path: "frontend/tsconfig.json",
+      language: "json",
+      description: "TypeScript compiler options for Vite React project",
+      code: JSON.stringify(
+        {
+          compilerOptions: {
+            target: "ES2020",
+            useDefineForClassFields: true,
+            lib: ["ES2020", "DOM", "DOM.Iterable"],
+            module: "ESNext",
+            skipLibCheck: true,
+            moduleResolution: "bundler",
+            allowImportingTsExtensions: true,
+            resolveJsonModule: true,
+            isolatedModules: true,
+            noEmit: true,
+            jsx: "react-jsx",
+            strict: true,
+            noUnusedLocals: false,
+            noUnusedParameters: false,
+            noFallthroughCasesInSwitch: true,
+          },
+          include: ["src"],
+        },
+        null,
+        2
+      ),
+      layer: "frontend",
+    },
+    {
       path: "README.md",
       language: "markdown",
       description: "Complete production runbook and architecture guide",
@@ -2278,8 +2337,12 @@ Begin generating frontend files now:`;
       });
 
       const parsed = parseDelimitedCodeFiles(codeText);
-      if (parsed.length >= 4) {
-        return parsed;
+      if (parsed.length >= 2) {
+        // Merge AI-generated files on top of fallback files so no baseline config is ever lost
+        const fileMap = new Map<string, GeneratedCodeFile>();
+        fallback.forEach((f) => fileMap.set(f.path, f));
+        parsed.forEach((f) => fileMap.set(f.path, f));
+        return Array.from(fileMap.values());
       }
     } catch (err) {
       console.warn("generateFrontendEngine error, falling back to local synthesizer:", err);
