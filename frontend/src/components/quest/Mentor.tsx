@@ -1,13 +1,15 @@
 import Markdown from "react-markdown";
 import { useEffect, useRef, useState } from "react";
 import type { Blueprint, StudentProfile } from "@/lib/types";
+import { TOPIC_METADATA, type TopicType } from "@/lib/mentor-knowledge";
 import { YadukLogo } from "./YadukLogo";
-import { Send, Sparkles, X, RotateCcw } from "lucide-react";
+import { Send, Sparkles, X, RotateCcw, BookOpen } from "lucide-react";
 
 type ChatMessage = {
   id: string;
   role: "user" | "assistant";
   text: string;
+  topic?: TopicType;
 };
 
 const PROMPTS = [
@@ -34,6 +36,7 @@ export function Mentor({
   onClose?: () => void;
 }) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [activeTopic, setActiveTopic] = useState<TopicType>("getting_started");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [input, setInput] = useState("");
@@ -78,6 +81,7 @@ export function Mentor({
         body: JSON.stringify({
           message: trimmed,
           context: { profile, blueprint },
+          currentTopic: activeTopic,
           history: history.slice(-8),
         }),
       });
@@ -91,10 +95,15 @@ export function Mentor({
         throw new Error("No text received from mentor");
       }
 
+      if (data.activeTopic && data.activeTopic !== activeTopic) {
+        setActiveTopic(data.activeTopic);
+      }
+
       const mentorMsg: ChatMessage = {
         id: `mentor-${Date.now()}`,
         role: "assistant",
         text: data.text,
+        topic: data.activeTopic || activeTopic,
       };
       setMessages((prev) => [...prev, mentorMsg]);
     } catch (err: any) {
@@ -146,6 +155,39 @@ export function Mentor({
         )}
       </div>
 
+      {/* Topic Bar (Knowledge Base Chapter Focus) */}
+      <div className="border-b border-slate-100 bg-slate-50/80 px-4 py-2 flex items-center justify-between gap-2 overflow-x-auto no-scrollbar">
+        <div className="flex items-center gap-1.5 shrink-0">
+          <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Blueprint Focus:</span>
+          <span className="inline-flex items-center gap-1 rounded-md bg-blue-100/80 px-2 py-0.5 text-[11px] font-semibold text-blue-800">
+            <span>{TOPIC_METADATA[activeTopic].icon}</span>
+            <span>{TOPIC_METADATA[activeTopic].label}</span>
+          </span>
+        </div>
+        <div className="flex items-center gap-1 overflow-x-auto no-scrollbar py-0.5">
+          {(["getting_started", "architecture", "database", "stack_tooling", "mvp_features", "challenges_viva"] as TopicType[]).map((topicKey) => {
+            const meta = TOPIC_METADATA[topicKey];
+            const isSelected = activeTopic === topicKey;
+            return (
+              <button
+                key={topicKey}
+                type="button"
+                onClick={() => setActiveTopic(topicKey)}
+                title={meta.hint}
+                className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[10px] font-medium transition-all shrink-0 cursor-pointer ${
+                  isSelected
+                    ? "bg-blue-600 text-white shadow-xs"
+                    : "bg-white border border-slate-200 text-slate-600 hover:border-blue-300 hover:text-blue-700"
+                }`}
+              >
+                <span>{meta.icon}</span>
+                <span>{meta.label}</span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
       {/* Messages area */}
       <div className="flex-1 space-y-3.5 overflow-y-auto p-5">
         {messages.length === 0 && (
@@ -155,7 +197,7 @@ export function Mentor({
               <span>Ask Yaduk Anything About Your Project</span>
             </div>
             <p className="text-xs text-slate-600 leading-relaxed">
-              I have full knowledge of your skills, chosen tech stack, and blueprint. Ask me for coding assistance, debugging advice, or interview prep.
+              I have indexed your blueprint into queryable knowledge base chapters. Ask me for coding assistance, schema design, architecture explanations, or interview prep.
             </p>
             <div className="flex flex-wrap gap-1.5 pt-1">
               {PROMPTS.map((p) => (
@@ -180,7 +222,19 @@ export function Mentor({
                   : "mentor-md rounded-2xl rounded-tl-xs border border-slate-200/80 bg-slate-50/70 p-4 text-slate-800 shadow-2xs"
               }`}
             >
-              {m.role === "user" ? m.text : <Markdown>{m.text}</Markdown>}
+              {m.role === "user" ? (
+                m.text
+              ) : (
+                <>
+                  {m.topic && TOPIC_METADATA[m.topic] && (
+                    <div className="mb-2 flex items-center gap-1 text-[10px] font-bold text-blue-600">
+                      <BookOpen className="size-3" />
+                      <span>Blueprint Reference: {TOPIC_METADATA[m.topic].label}</span>
+                    </div>
+                  )}
+                  <Markdown>{m.text}</Markdown>
+                </>
+              )}
             </div>
           </div>
         ))}
@@ -190,7 +244,9 @@ export function Mentor({
             <div className="size-2 rounded-full bg-blue-600 animate-bounce" />
             <div className="size-2 rounded-full bg-indigo-600 animate-bounce delay-100" />
             <div className="size-2 rounded-full bg-blue-400 animate-bounce delay-200" />
-            <span>Yaduk is analyzing your blueprint…</span>
+            <span>
+              Consulting blueprint: <strong>{TOPIC_METADATA[activeTopic].label}</strong>…
+            </span>
           </div>
         )}
 

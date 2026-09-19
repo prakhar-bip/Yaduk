@@ -2,10 +2,17 @@ import { createFileRoute } from "@tanstack/react-router";
 import { convertToModelMessages, streamText, type UIMessage } from "ai";
 import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
 
+import { detectTopic, getTopicPrompt, type TopicType } from "@/lib/mentor-knowledge";
+import type { Blueprint, StudentProfile } from "@/lib/types";
+
 type Body = {
   messages?: unknown;
   message?: string;
-  context?: unknown;
+  context?: {
+    profile?: StudentProfile;
+    blueprint?: Blueprint;
+  };
+  currentTopic?: TopicType;
   history?: Array<{ role: string; content: string }>;
 };
 
@@ -46,6 +53,12 @@ export const Route = createFileRoute("/api/chat")({
             }));
             messages.push({ role: "user", content: userPrompt });
 
+            const currentTopic: TopicType = body.currentTopic || "getting_started";
+            const activeTopic = detectTopic(userPrompt, currentTopic);
+            const profile = body.context?.profile;
+            const blueprint = body.context?.blueprint;
+            const systemPrompt = getTopicPrompt(blueprint, profile, activeTopic);
+
             const groqKey = process.env["GROQ_API_KEY"] || "";
 
             // Strategy A: Direct Groq API strictly using openai/gpt-oss-120b with Cloudflare WAF bypass header
@@ -64,7 +77,7 @@ export const Route = createFileRoute("/api/chat")({
                     messages: [
                       {
                         role: "system",
-                        content: `You are Yaduk, the AI Project Mentor and Architect. Guide engineering students through architecting and building top-tier final-year projects. Answer questions with concrete, clear, and actionable advice.\nCONTEXT:\n${JSON.stringify(body.context || {}).slice(0, 10000)}`,
+                        content: systemPrompt,
                       },
                       ...messages,
                     ],
@@ -80,12 +93,12 @@ export const Route = createFileRoute("/api/chat")({
                   const reply = choice?.content || choice?.reasoning || "";
                   if (reply) {
                     logTerminalActivity(
-                      "Yaduk Chat Mentor Agent (Groq: openai/gpt-oss-120b)",
+                      `Yaduk Chat Mentor Agent (Groq: openai/gpt-oss-120b [${activeTopic}])`,
                       true,
                       null,
                       null,
                     );
-                    return new Response(JSON.stringify({ text: reply }), {
+                    return new Response(JSON.stringify({ text: reply, activeTopic }), {
                       status: 200,
                       headers: { "Content-Type": "application/json" },
                     });
@@ -108,7 +121,8 @@ export const Route = createFileRoute("/api/chat")({
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
                   messages,
-                  context: body.context || {},
+                  context: { profile, blueprint, activeTopic },
+                  system: systemPrompt,
                 }),
                 signal: AbortSignal.timeout(20000),
               });
@@ -117,12 +131,12 @@ export const Route = createFileRoute("/api/chat")({
                 const ebData = await ebRes.json();
                 if (ebData.text) {
                   logTerminalActivity(
-                    "Yaduk Chat Mentor Agent (Elastic Beanstalk Gateway)",
+                    `Yaduk Chat Mentor Agent (Elastic Beanstalk Gateway [${activeTopic}])`,
                     true,
                     null,
                     null,
                   );
-                  return new Response(JSON.stringify({ text: ebData.text }), {
+                  return new Response(JSON.stringify({ text: ebData.text, activeTopic }), {
                     status: 200,
                     headers: { "Content-Type": "application/json" },
                   });
@@ -156,7 +170,7 @@ export const Route = createFileRoute("/api/chat")({
                   messages: [
                     {
                       role: "system",
-                      content: `You are Yaduk, the AI Project Mentor and Architect. Guide engineering students through architecting and building top-tier final-year projects. Answer questions with concrete, clear, and actionable advice.\nCONTEXT:\n${JSON.stringify(body.context || {}).slice(0, 10000)}`,
+                      content: systemPrompt,
                     },
                     ...messages,
                   ],
@@ -170,12 +184,12 @@ export const Route = createFileRoute("/api/chat")({
                 const nimData = await nimRes.json();
                 const reply = nimData.choices?.[0]?.message?.content || "";
                 logTerminalActivity(
-                  `Yaduk Chat Mentor Agent (NVIDIA NIM: ${nvidiaModel})`,
+                  `Yaduk Chat Mentor Agent (NVIDIA NIM: ${nvidiaModel} [${activeTopic}])`,
                   true,
                   null,
                   null,
                 );
-                return new Response(JSON.stringify({ text: reply }), {
+                return new Response(JSON.stringify({ text: reply, activeTopic }), {
                   status: 200,
                   headers: { "Content-Type": "application/json" },
                 });
@@ -193,6 +207,7 @@ export const Route = createFileRoute("/api/chat")({
             return new Response(
               JSON.stringify({
                 text: "I am ready to help you build your project! Focus on setting up your core database schema and primary API endpoints first before building the frontend interface.",
+                activeTopic,
               }),
               {
                 status: 200,
@@ -212,6 +227,14 @@ export const Route = createFileRoute("/api/chat")({
             return new Response("Message parameter is required", { status: 400 });
           }
 
+          const currentTopic: TopicType = body.currentTopic || "getting_started";
+          const rawMsgs = Array.isArray(body.messages) ? body.messages : [];
+          const lastUserMsg = (rawMsgs as any[]).slice(-1)[0]?.content || "";
+          const activeTopic = detectTopic(typeof lastUserMsg === "string" ? lastUserMsg : "", currentTopic);
+          const profile = body.context?.profile;
+          const blueprint = body.context?.blueprint;
+          const systemPrompt = getTopicPrompt(blueprint, profile, activeTopic);
+
           const groqKey = process.env["GROQ_API_KEY"] || "";
           const nvidiaKey = process.env["NVIDIA_API_KEY"] || "";
 
@@ -229,19 +252,12 @@ export const Route = createFileRoute("/api/chat")({
 
             const result = streamText({
               model: provider("openai/gpt-oss-120b"),
-              system: `You are Yaduk, the AI Project Mentor and Architect, dedicated to guiding engineering students through architecting and building top-tier final-year and flagship capstone projects.
-You know their profile and their current project blueprint (JSON below). Answer questions about implementation,
-stack choices, scope, alternatives and complexity. Be concrete and brief (max ~150 words unless asked for depth).
-Use plain, friendly language.
-This is a discussion space: answer doubts, talk through problems, and give guidance.
-
-CONTEXT:
-${JSON.stringify(body.context ?? {}).slice(0, 12000)}`,
+              system: systemPrompt,
               messages: await convertToModelMessages(body.messages as UIMessage[]),
             });
 
             logTerminalActivity(
-              "Yaduk Chat Mentor Agent (Groq: openai/gpt-oss-120b)",
+              `Yaduk Chat Mentor Agent (Groq: openai/gpt-oss-120b [${activeTopic}])`,
               true,
               null,
               null,
@@ -268,14 +284,7 @@ ${JSON.stringify(body.context ?? {}).slice(0, 12000)}`,
 
           const result = streamText({
             model: provider(nvidiaModel),
-            system: `You are Yaduk, the AI Project Mentor and Architect, dedicated to guiding engineering students through architecting and building top-tier final-year and flagship capstone projects.
-You know their profile and their current project blueprint (JSON below). Answer questions about implementation,
-stack choices, scope, alternatives and complexity. Be concrete and brief (max ~150 words unless asked for depth).
-Use plain, friendly language.
-This is a discussion space: answer doubts, talk through problems, and give guidance.
-
-CONTEXT:
-${JSON.stringify(body.context ?? {}).slice(0, 12000)}`,
+            system: systemPrompt,
             messages: await convertToModelMessages(body.messages as UIMessage[]),
           });
 
