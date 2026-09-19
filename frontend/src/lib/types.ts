@@ -98,7 +98,48 @@ export type Stage =
   | "blueprint"
   | "theme"
   | "contract"
+  | "setup"
+  | "codebase"
   | "mentor";
+
+export type DependencyItem = {
+  name: string;
+  version: string;
+  purpose: string;
+  isDev?: boolean | undefined;
+  category?: "core" | "database" | "auth" | "utility" | "testing" | undefined;
+};
+
+export type ProjectSetupSpec = {
+  title: string;
+  backendLanguage: string;
+  backendFramework: string;
+  backendManifestName: string; // e.g. "requirements.txt", "package.json", "go.mod", "pom.xml"
+  frontendFramework: string;
+  frontendManifestName: string; // e.g. "package.json"
+  backendDependencies: DependencyItem[];
+  frontendDependencies: DependencyItem[];
+  devScripts: { command: string; script: string; purpose: string }[];
+  environmentVariables: { key: string; example: string; purpose: string }[];
+  fileTreePreview: { path: string; purpose: string; layer: "backend" | "frontend" | "database" | "root" }[];
+  runInstructions: { step: number; title: string; command: string; note: string }[];
+};
+
+export type GeneratedCodeFile = {
+  path: string;
+  language: string;
+  description: string;
+  code: string;
+  layer: "backend" | "frontend" | "database" | "root";
+};
+
+export type ProjectCodebase = {
+  setupSpec: ProjectSetupSpec;
+  files: GeneratedCodeFile[];
+  backendEngineCompleted: boolean;
+  frontendEngineCompleted: boolean;
+  activeFilePath?: string | undefined;
+};
 
 
 export type ApiRouteSpec = {
@@ -178,6 +219,8 @@ export type JourneyState = {
   blueprint: Blueprint | null;
   selectedTheme?: string | undefined;
   backendContract?: BackendContractDoc | null | undefined;
+  setupSpec?: ProjectSetupSpec | null | undefined;
+  codebase?: ProjectCodebase | null | undefined;
   scroll: QuestScroll | null;
   changeLog: string[];
   xp: number;
@@ -194,6 +237,8 @@ export const emptyJourney: JourneyState = {
   blueprint: null,
   selectedTheme: undefined,
   backendContract: null,
+  setupSpec: null,
+  codebase: null,
   scroll: null,
   changeLog: [],
   xp: 0,
@@ -208,6 +253,8 @@ export const BADGES: Record<string, { label: string; hint: string }> = {
   architect: { label: "Plan", hint: "Unlocked your full project plan" },
   stylist: { label: "Theme", hint: "Crafted the visual identity of your software" },
   engineer: { label: "Contract", hint: "Inspected and locked the backend API & database contracts" },
+  builder: { label: "Setup", hint: "Configured and locked project dependencies" },
+  coder: { label: "Codebase", hint: "Synthesized production two-engine codebase" },
   apprentice: { label: "Mentor", hint: "Talked things through with your mentor" },
   shipwright: { label: "Updated", hint: "Updated the plan after a mentor chat" },
   loremaster: { label: "Summary", hint: "Created a short summary of your plan" },

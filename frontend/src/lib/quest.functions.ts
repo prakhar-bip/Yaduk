@@ -6,8 +6,12 @@ import type {
   BackendServiceSpec,
   Blueprint,
   DatabaseTableSpec,
+  DependencyItem,
   Feasibility,
+  GeneratedCodeFile,
+  ProjectCodebase,
   ProjectIdea,
+  ProjectSetupSpec,
   QuestScroll,
   StudentProfile,
   UserWorkflowStep,
@@ -1559,6 +1563,727 @@ JSON Shape:
 
     return fallback;
   });
+function getLanguageFromPath(path: string): string {
+  const ext = path.split(".").pop()?.toLowerCase();
+  switch (ext) {
+    case "ts":
+    case "tsx":
+      return "typescript";
+    case "js":
+    case "jsx":
+      return "javascript";
+    case "py":
+      return "python";
+    case "sql":
+      return "sql";
+    case "json":
+      return "json";
+    case "md":
+      return "markdown";
+    case "html":
+      return "html";
+    case "css":
+      return "css";
+    case "yaml":
+    case "yml":
+      return "yaml";
+    case "go":
+      return "go";
+    case "java":
+      return "java";
+    case "rs":
+      return "rust";
+    case "sh":
+    case "bash":
+      return "bash";
+    case "env":
+      return "bash";
+    default:
+      return "text";
+  }
+}
 
+function getLayerFromPath(path: string): "backend" | "frontend" | "database" | "root" {
+  const p = path.toLowerCase();
+  if (p.startsWith("backend/") || p.startsWith("server/") || p.startsWith("api/")) return "backend";
+  if (p.startsWith("frontend/") || p.startsWith("client/") || p.startsWith("web/")) return "frontend";
+  if (p.startsWith("database/") || p.startsWith("db/") || p.endsWith(".sql")) return "database";
+  return "root";
+}
 
+export function parseDelimitedCodeFiles(text: string): GeneratedCodeFile[] {
+  const files: GeneratedCodeFile[] = [];
 
+  // Match: === FILE: <path> === ... === END FILE ===
+  const equalsFileRegex =
+    /===\s*FILE:\s*([^\r\n=]+)\s*===\r?\n([\s\S]*?)(?:===\s*END FILE\s*===|(?====\s*FILE:)|$)/gi;
+  let eqMatch: RegExpExecArray | null;
+
+  while ((eqMatch = equalsFileRegex.exec(text)) !== null) {
+    const rawPath = (eqMatch[1] ?? "").trim();
+    let rawCode = (eqMatch[2] ?? "").trim();
+    if (!rawPath) continue;
+
+    const fenceStripMatch = rawCode.match(/^```(?:\w+)?\r?\n([\s\S]*?)\r?\n```$/);
+    if (fenceStripMatch && fenceStripMatch[1] !== undefined) {
+      rawCode = fenceStripMatch[1];
+    }
+    const language = getLanguageFromPath(rawPath);
+    const layer = getLayerFromPath(rawPath);
+    files.push({
+      path: rawPath,
+      language,
+      description: `Production module for ${rawPath}`,
+      code: rawCode,
+      layer,
+    });
+  }
+
+  // Fallback: Markdown format (### FILE: path ... ```code```)
+  if (files.length === 0) {
+    const mdFileRegex =
+      /(?:###?\s*FILE:?|\*\*File:?\*\*|File:?)\s*`?([^\r\n`]+)`?\r?\n```(\w*)\r?\n([\s\S]*?)```/gi;
+    let mdMatch: RegExpExecArray | null;
+    while ((mdMatch = mdFileRegex.exec(text)) !== null) {
+      const rawPath = (mdMatch[1] ?? "").trim();
+      if (!rawPath) continue;
+      const language = (mdMatch[2] ?? "").trim() || getLanguageFromPath(rawPath);
+      const code = (mdMatch[3] ?? "").trimEnd();
+      const layer = getLayerFromPath(rawPath);
+      files.push({
+        path: rawPath,
+        language,
+        description: `Production module for ${rawPath}`,
+        code,
+        layer,
+      });
+    }
+  }
+
+  return files;
+}
+
+export function generateProjectSetupFallback(
+  blueprint: Blueprint,
+  _profile?: StudentProfile | null,
+  contract?: BackendContractDoc | null
+): ProjectSetupSpec {
+  const title = blueprint.title || "Production Software Platform";
+  const stack = blueprint.stack || [];
+
+  // 1. Detect Backend Language & Framework dynamically
+  const isPython = stack.some(
+    (s) =>
+      s.name.toLowerCase().includes("python") ||
+      s.name.toLowerCase().includes("fastapi") ||
+      s.name.toLowerCase().includes("django") ||
+      s.name.toLowerCase().includes("flask")
+  );
+  const isNode = stack.some(
+    (s) =>
+      s.name.toLowerCase().includes("node") ||
+      s.name.toLowerCase().includes("express") ||
+      s.name.toLowerCase().includes("nest")
+  );
+  const isGo = stack.some(
+    (s) =>
+      s.name.toLowerCase().includes("go") ||
+      s.name.toLowerCase().includes("gin") ||
+      s.name.toLowerCase().includes("fiber")
+  );
+
+  let backendLanguage = "Python 3.11";
+  let backendFramework = "FastAPI";
+  let backendManifestName = "requirements.txt";
+  let backendDeps: DependencyItem[] = [];
+
+  if (isGo) {
+    backendLanguage = "Go 1.22";
+    backendFramework = "Gin Web Framework";
+    backendManifestName = "go.mod";
+    backendDeps = [
+      { name: "github.com/gin-gonic/gin", version: "v1.10.0", purpose: "High-performance HTTP routing and REST engine", category: "core" },
+      { name: "github.com/golang-jwt/jwt/v5", version: "v5.2.1", purpose: "JWT bearer authentication and claim validation", category: "auth" },
+      { name: "gorm.io/gorm", version: "v1.25.10", purpose: "Object Relational Mapping & schema query engine", category: "database" },
+      { name: "gorm.io/driver/postgres", version: "v1.5.7", purpose: "PostgreSQL database driver for GORM", category: "database" },
+      { name: "github.com/joho/godotenv", version: "v1.5.1", purpose: "Local environment variable loading", category: "utility" },
+    ];
+  } else if (isNode) {
+    backendLanguage = "Node.js (TypeScript)";
+    backendFramework = "Express";
+    backendManifestName = "package.json";
+    backendDeps = [
+      { name: "express", version: "^4.19.2", purpose: "REST API server and middleware framework", category: "core" },
+      { name: "cors", version: "^2.8.5", purpose: "Cross-Origin Resource Sharing handling for frontend requests", category: "core" },
+      { name: "dotenv", version: "^16.4.5", purpose: "Loads environment variables from .env", category: "utility" },
+      { name: "jsonwebtoken", version: "^9.0.2", purpose: "Secure JWT access and refresh token generator", category: "auth" },
+      { name: "bcryptjs", version: "^2.4.3", purpose: "Salted cryptographic password hashing", category: "auth" },
+      { name: "pg", version: "^8.12.0", purpose: "PostgreSQL client and connection pooling", category: "database" },
+      { name: "zod", version: "^3.23.8", purpose: "Type-safe runtime request body validation schemas", category: "core" },
+      { name: "tsx", version: "^4.16.2", purpose: "Fast TypeScript execution and hot reloading in dev", isDev: true, category: "testing" },
+      { name: "typescript", version: "^5.5.3", purpose: "Static typing compiler", isDev: true, category: "testing" },
+    ];
+  } else {
+    // Default Python FastAPI
+    backendLanguage = "Python 3.11";
+    backendFramework = "FastAPI";
+    backendManifestName = "requirements.txt";
+    backendDeps = [
+      { name: "fastapi", version: ">=0.111.0", purpose: "High-performance asynchronous REST API framework", category: "core" },
+      { name: "uvicorn[standard]", version: ">=0.30.0", purpose: "Lightning-fast ASGI production web server", category: "core" },
+      { name: "pydantic", version: ">=2.7.0", purpose: "Pydantic v2 data validation and response schemas", category: "core" },
+      { name: "sqlalchemy", version: ">=2.0.30", purpose: "SQLAlchemy 2.0 async ORM and query builder", category: "database" },
+      { name: "asyncpg", version: ">=0.29.0", purpose: "Fast asynchronous PostgreSQL database driver", category: "database" },
+      { name: "python-jose[cryptography]", version: ">=3.3.0", purpose: "JWT cryptographic signing and verification", category: "auth" },
+      { name: "passlib[bcrypt]", version: ">=1.7.4", purpose: "Argon2 / Bcrypt secure password hashing", category: "auth" },
+      { name: "python-dotenv", version: ">=1.0.1", purpose: "Automatic .env environment variable parsing", category: "utility" },
+      { name: "httpx", version: ">=0.27.0", purpose: "Async HTTP client for external integrations", category: "utility" },
+      { name: "pytest", version: ">=8.2.0", purpose: "Test runner for unit and integration testing", isDev: true, category: "testing" },
+    ];
+  }
+
+  // 2. Detect Frontend Language & Framework dynamically
+  const isVue = stack.some((s) => s.name.toLowerCase().includes("vue"));
+  const isNext = stack.some((s) => s.name.toLowerCase().includes("next"));
+
+  let frontendFramework = "React 19 (Vite + TypeScript)";
+  const frontendManifestName = "package.json";
+  let frontendDeps: DependencyItem[] = [];
+
+  if (isVue) {
+    frontendFramework = "Vue 3 (Vite + TypeScript)";
+    frontendDeps = [
+      { name: "vue", version: "^3.4.30", purpose: "Reactive UI framework with Composition API", category: "core" },
+      { name: "vue-router", version: "^4.3.3", purpose: "Single-Page Application client routing", category: "core" },
+      { name: "pinia", version: "^2.1.7", purpose: "Intuitive, type-safe global state management store", category: "core" },
+      { name: "axios", version: "^1.7.2", purpose: "Promise-based HTTP client for API endpoints", category: "utility" },
+      { name: "lucide-vue-next", version: "^0.395.0", purpose: "Clean modern SVG icon set", category: "utility" },
+      { name: "tailwindcss", version: "^3.4.4", purpose: "Utility-first CSS styling framework", category: "core" },
+      { name: "vite", version: "^5.3.1", purpose: "Next-generation frontend dev server & bundler", isDev: true, category: "core" },
+      { name: "typescript", version: "^5.5.2", purpose: "TypeScript compiler & type checking", isDev: true, category: "testing" },
+    ];
+  } else {
+    // Default React 19 / TypeScript
+    frontendFramework = isNext ? "Next.js 14 (App Router)" : "React 19 (Vite + TypeScript)";
+    frontendDeps = [
+      { name: "react", version: "^19.0.0", purpose: "Modern declarative user interface library", category: "core" },
+      { name: "react-dom", version: "^19.0.0", purpose: "React DOM rendering engine", category: "core" },
+      { name: "axios", version: "^1.7.2", purpose: "Configured API client with error interceptors", category: "utility" },
+      { name: "lucide-react", version: "^0.475.0", purpose: "Modern icon family for UI status and navigation", category: "utility" },
+      { name: "clsx", version: "^2.1.1", purpose: "Utility for conditionally constructing className strings", category: "utility" },
+      { name: "tailwind-merge", version: "^2.3.0", purpose: "Conflict-free Tailwind class merge utility", category: "utility" },
+      { name: "@tanstack/react-router", version: "^1.35.0", purpose: "Type-safe client routing and deep-linking", category: "core" },
+      { name: "vite", version: "^5.3.1", purpose: "Sub-second HMR frontend bundler", isDev: true, category: "core" },
+      { name: "typescript", version: "^5.5.2", purpose: "Strict type safety checking across all components", isDev: true, category: "testing" },
+      { name: "@types/react", version: "^19.0.0", purpose: "React TypeScript type declarations", isDev: true, category: "testing" },
+      { name: "@tailwindcss/vite", version: "^4.0.0", purpose: "Tailwind CSS Vite compiler integration", isDev: true, category: "core" },
+    ];
+  }
+
+  // 3. Dev Scripts
+  const devScripts = [
+    {
+      command: "setup",
+      script: isPython ? "pip install -r backend/requirements.txt && cd frontend && npm install" : "npm run install:all",
+      purpose: "One-step dependency installation for backend and frontend",
+    },
+    {
+      command: "dev:backend",
+      script: isPython ? "uvicorn backend.app.main:app --reload --port 8000" : isGo ? "go run backend/main.go" : "npm run dev --prefix backend",
+      purpose: "Starts backend API server in hot-reload development mode",
+    },
+    {
+      command: "dev:frontend",
+      script: "cd frontend && npm run dev",
+      purpose: "Starts Vite client web server on localhost:5173",
+    },
+    {
+      command: "db:init",
+      script: isPython ? "python -m backend.app.db_init" : "npm run db:migrate",
+      purpose: "Executes SQL DDL schema creation and initial seeds",
+    },
+    {
+      command: "docker:up",
+      script: "docker-compose up --build",
+      purpose: "Spins up complete multi-container environment (Database + Backend + Frontend)",
+    },
+  ];
+
+  // 4. Environment Variables
+  const envVars = contract?.environmentVariables?.length
+    ? contract.environmentVariables.map((e) => ({ key: e.key, example: e.example, purpose: e.purpose }))
+    : [
+        { key: "DATABASE_URL", example: "postgresql://postgres:postgres@localhost:5432/app_db", purpose: "Database connection URI with credentials" },
+        { key: "JWT_SECRET_KEY", example: "dev_secret_key_change_in_production_894372", purpose: "Cryptographic secret for signing authentication tokens" },
+        { key: "ENVIRONMENT", example: "development", purpose: "Application environment mode (development/production)" },
+        { key: "VITE_API_BASE_URL", example: "http://localhost:8000", purpose: "Backend API endpoint consumed by the frontend client" },
+        { key: "PORT", example: "8000", purpose: "Backend application port" },
+      ];
+
+  // 5. File Tree Preview
+  const fileTreePreview = [
+    { path: `backend/${backendManifestName}`, purpose: "Locked backend package dependencies", layer: "backend" as const },
+    { path: "backend/app/main.py", purpose: "Primary application server entry point & CORS configuration", layer: "backend" as const },
+    { path: "backend/app/config.py", purpose: "Pydantic settings and environment loader", layer: "backend" as const },
+    { path: "backend/app/database.py", purpose: "Database connection engine and session dependency", layer: "backend" as const },
+    { path: "backend/app/models.py", purpose: "SQL relational models matching DDL schema contract", layer: "backend" as const },
+    { path: "backend/app/schemas.py", purpose: "Data validation models matching REST API contracts", layer: "backend" as const },
+    { path: "backend/app/routers/api.py", purpose: "Feature endpoints and business logic controllers", layer: "backend" as const },
+    { path: "database/schema.sql", purpose: "PostgreSQL relational table DDL, constraints, and indexes", layer: "database" as const },
+    { path: "database/seed.sql", purpose: "Initial mock records for testing features instantly", layer: "database" as const },
+    { path: `frontend/${frontendManifestName}`, purpose: "Locked frontend dependencies, scripts, and build tooling", layer: "frontend" as const },
+    { path: "frontend/vite.config.ts", purpose: "Vite bundler configuration with Tailwind CSS plugin", layer: "frontend" as const },
+    { path: "frontend/src/api/client.ts", purpose: "Type-safe Axios client mirroring backend routes", layer: "frontend" as const },
+    { path: "frontend/src/App.tsx", purpose: "Master application layout, theme wrapper, and navigation", layer: "frontend" as const },
+    { path: "frontend/src/views/DashboardView.tsx", purpose: "Primary interactive dashboard view", layer: "frontend" as const },
+    { path: ".env.example", purpose: "Complete template for all required runtime environment variables", layer: "root" as const },
+    { path: "docker-compose.yml", purpose: "Multi-container orchestration for PostgreSQL, backend, and frontend", layer: "root" as const },
+    { path: "README.md", purpose: "Quickstart runbook with copy-paste setup commands and architecture overview", layer: "root" as const },
+  ];
+
+  // 6. Run Instructions
+  const runInstructions = [
+    { step: 1, title: "Initialize Database", command: "docker-compose up -d db", note: "Spins up PostgreSQL container and mounts schema.sql" },
+    { step: 2, title: "Configure Environment", command: "cp .env.example .env", note: "Populates local connection strings and JWT secrets" },
+    { step: 3, title: "Install Dependencies", command: isPython ? "pip install -r backend/requirements.txt && cd frontend && npm install" : "npm run setup", note: "Installs approved backend and frontend libraries" },
+    { step: 4, title: "Start Backend Server", command: isPython ? "uvicorn backend.app.main:app --reload --port 8000" : "npm run dev:backend", note: "Launches API server with Swagger docs at http://localhost:8000/docs" },
+    { step: 5, title: "Launch Frontend UI", command: "cd frontend && npm run dev", note: "Opens interactive UI with HMR at http://localhost:5173" },
+  ];
+
+  return {
+    title: `${title} Setup & Dependency Contract`,
+    backendLanguage,
+    backendFramework,
+    backendManifestName,
+    frontendFramework,
+    frontendManifestName,
+    backendDependencies: backendDeps,
+    frontendDependencies: frontendDeps,
+    devScripts,
+    environmentVariables: envVars,
+    fileTreePreview,
+    runInstructions,
+  };
+}
+
+export const generateProjectSetup = createServerFn({ method: "POST" })
+  .inputValidator(
+    (data: { blueprint: Blueprint; profile?: StudentProfile | null | undefined; contract?: BackendContractDoc | null | undefined }) => data
+  )
+  .handler(async ({ data }) => {
+    const fallback = generateProjectSetupFallback(data.blueprint, data.profile, data.contract);
+
+    try {
+      const prompt = `${data.profile ? profileBlock(data.profile) : ""}
+
+PROJECT BLUEPRINT:
+Title: ${data.blueprint.title}
+Problem: ${data.blueprint.overview.problemStatement}
+Solution: ${data.blueprint.overview.proposedSolution}
+Tech Stack: ${data.blueprint.stack.map((s) => `${s.name} (${s.category})`).join(", ")}
+
+BACKEND CONTRACT SPECIFICATION:
+Framework: ${data.contract?.framework || "FastAPI"}
+Database: ${data.contract?.databaseEngine || "PostgreSQL 16"}
+APIs: ${data.contract?.apiRoutes?.map((r) => `${r.method} ${r.route} (${r.summary})`).slice(0, 8).join(", ") || "REST"}
+
+As Yaduk Infrastructure Architect, design the complete project dependency and environment setup specification tailored dynamically to this project.
+Return strictly valid JSON with exact packages, version constraints, setup commands, and directory tree.
+
+JSON shape:
+{
+  "title": "${fallback.title}",
+  "backendLanguage": "${fallback.backendLanguage}",
+  "backendFramework": "${fallback.backendFramework}",
+  "backendManifestName": "${fallback.backendManifestName}",
+  "frontendFramework": "${fallback.frontendFramework}",
+  "frontendManifestName": "${fallback.frontendManifestName}",
+  "backendDependencies": [
+    {"name": "package-name", "version": ">=1.0.0", "purpose": "Clear 1-sentence technical purpose", "isDev": false, "category": "core"}
+  ],
+  "frontendDependencies": [
+    {"name": "package-name", "version": "^1.0.0", "purpose": "Clear 1-sentence technical purpose", "isDev": false, "category": "core"}
+  ],
+  "devScripts": [
+    {"command": "setup", "script": "install command", "purpose": "What this executes"}
+  ],
+  "environmentVariables": [
+    {"key": "DATABASE_URL", "example": "postgresql://...", "purpose": "Purpose"}
+  ],
+  "fileTreePreview": [
+    {"path": "backend/app/main.py", "purpose": "Entry point", "layer": "backend"}
+  ],
+  "runInstructions": [
+    {"step": 1, "title": "Step title", "command": "shell command", "note": "Helpful note"}
+  ]
+}`;
+
+      const res = await generateJson<ProjectSetupSpec>({
+        system:
+          "You are Yaduk, Principal Infrastructure Architect. " +
+          "You formulate clean, production-grade dependency manifests and setup runbooks for engineering projects.",
+        prompt,
+        agentName: "Yaduk Project Setup Architect",
+      });
+
+      if (
+        res?.backendDependencies &&
+        res.backendDependencies.length > 0 &&
+        res.frontendDependencies &&
+        res.frontendDependencies.length > 0
+      ) {
+        return {
+          ...fallback,
+          ...res,
+          title: res.title || fallback.title,
+          backendLanguage: res.backendLanguage || fallback.backendLanguage,
+          backendFramework: res.backendFramework || fallback.backendFramework,
+          backendManifestName: res.backendManifestName || fallback.backendManifestName,
+          frontendFramework: res.frontendFramework || fallback.frontendFramework,
+          frontendManifestName: res.frontendManifestName || fallback.frontendManifestName,
+        };
+      }
+    } catch (err) {
+      console.warn("generateProjectSetup API call error, falling back to local synthesizer:", err);
+    }
+
+    return fallback;
+  });
+
+export function generateBackendEngineFallback(
+  blueprint: Blueprint,
+  contract: BackendContractDoc,
+  setupSpec: ProjectSetupSpec
+): GeneratedCodeFile[] {
+  const title = blueprint.title || "Production Software Platform";
+  const slug = title.toLowerCase().replace(/[^a-z0-9]+/g, "_");
+
+  // Format requirements.txt directly from approved backend dependencies
+  const requirementsTxt = setupSpec.backendDependencies
+    .map((dep) => `${dep.name}${dep.version.startsWith(">=") || dep.version.startsWith("==") ? dep.version : `==${dep.version.replace(/^\^/, "")}`}`)
+    .join("\n");
+
+  const files: GeneratedCodeFile[] = [
+    {
+      path: `backend/${setupSpec.backendManifestName}`,
+      language: setupSpec.backendManifestName === "package.json" ? "json" : "text",
+      description: `Locked backend dependencies as approved by student in Setup Inspector`,
+      code: setupSpec.backendManifestName === "package.json"
+        ? JSON.stringify({ name: `${slug}-backend`, version: "1.0.0", dependencies: Object.fromEntries(setupSpec.backendDependencies.filter(d => !d.isDev).map(d => [d.name, d.version])), devDependencies: Object.fromEntries(setupSpec.backendDependencies.filter(d => d.isDev).map(d => [d.name, d.version])) }, null, 2)
+        : requirementsTxt,
+      layer: "backend",
+    },
+    {
+      path: "backend/app/__init__.py",
+      language: "python",
+      description: "Package initialization marker",
+      code: `"""${title} Backend Application Package."""\n__version__ = "1.0.0"\n`,
+      layer: "backend",
+    },
+    {
+      path: "backend/app/config.py",
+      language: "python",
+      description: "Application configuration & environment variables loader",
+      code: `import os\nfrom pydantic_settings import BaseSettings, SettingsConfigDict\n\nclass Settings(BaseSettings):\n    APP_NAME: str = "${title}"\n    ENVIRONMENT: str = os.getenv("ENVIRONMENT", "development")\n    DATABASE_URL: str = os.getenv("DATABASE_URL", "postgresql+asyncpg://postgres:postgres@localhost:5432/${slug}_db")\n    JWT_SECRET_KEY: str = os.getenv("JWT_SECRET_KEY", "dev_secret_key_replace_in_production")\n    JWT_ALGORITHM: str = "HS256"\n    ACCESS_TOKEN_EXPIRE_MINUTES: int = 60\n\n    model_config = SettingsConfigDict(env_file=".env", extra="ignore")\n\nsettings = Settings()\n`,
+      layer: "backend",
+    },
+    {
+      path: "backend/app/database.py",
+      language: "python",
+      description: "Async database engine, session factory, and Base declarative model",
+      code: `from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession\nfrom sqlalchemy.orm import DeclarativeBase\nfrom backend.app.config import settings\n\nengine = create_async_engine(settings.DATABASE_URL, echo=settings.ENVIRONMENT == "development")\nAsyncSessionLocal = async_sessionmaker(engine, expire_on_commit=False, class_=AsyncSession)\n\nclass Base(DeclarativeBase):\n    pass\n\nasync def get_db():\n    async with AsyncSessionLocal() as session:\n        try:\n            yield session\n        finally:\n            await session.close()\n`,
+      layer: "backend",
+    },
+    {
+      path: "backend/app/schemas.py",
+      language: "python",
+      description: "Pydantic v2 schemas mirroring the REST API contract",
+      code: `from pydantic import BaseModel, ConfigDict, Field\nfrom typing import Optional, List\nfrom datetime import datetime\n\nclass HealthResponse(BaseModel):\n    status: str = "healthy"\n    app: str = "${title}"\n    timestamp: datetime = Field(default_factory=datetime.utcnow)\n\nclass TokenResponse(BaseModel):\n    access_token: str\n    token_type: str = "bearer"\n\nclass GenericItemCreate(BaseModel):\n    title: str\n    description: Optional[str] = None\n\nclass GenericItemResponse(BaseModel):\n    id: str\n    title: str\n    description: Optional[str] = None\n    created_at: datetime\n\n    model_config = ConfigDict(from_attributes=True)\n`,
+      layer: "backend",
+    },
+    {
+      path: "backend/app/main.py",
+      language: "python",
+      description: "FastAPI server entry point with CORS and API router mounting",
+      code: `from fastapi import FastAPI, Depends\nfrom fastapi.middleware.cors import CORSMiddleware\nfrom backend.app.config import settings\nfrom backend.app.schemas import HealthResponse\n\napp = FastAPI(\n    title=settings.APP_NAME,\n    version="1.0.0",\n    description="Autonomous production API for ${title}"\n)\n\napp.add_middleware(\n    CORSMiddleware,\n    allow_origins=["*"],\n    allow_credentials=True,\n    allow_methods=["*"],\n    allow_headers=["*"],\n)\n\n@app.get("/api/v1/health", response_model=HealthResponse, tags=["System"])\nasync def health_check():\n    return HealthResponse()\n\n${contract.apiRoutes.map((r, i) => {
+        const fnName = r.route.replace(/[^a-zA-Z0-9]+/g, "_").replace(/^_+|_+$/g, "");
+        return `@app.${r.method.toLowerCase()}("${r.route}", tags=["${r.screenName}"])\nasync def ${fnName}_${i}():\n    """${r.summary}"""\n    return ${r.responsePayload || `{"status": "ok", "message": "${r.summary}"}`}\n`;
+      }).join("\n")}\n`,
+      layer: "backend",
+    },
+    {
+      path: "database/schema.sql",
+      language: "sql",
+      description: "PostgreSQL DDL schema matching the Backend Contract",
+      code: contract.databaseSchema.rawSqlDdl,
+      layer: "database",
+    },
+    {
+      path: "database/seed.sql",
+      language: "sql",
+      description: "Initial seed records for testing workflows immediately",
+      code: `-- Initial Seed Data for ${title}\nINSERT INTO candidates (full_name, github_url, match_score) VALUES\n('Aarav Patel', 'https://github.com/aarav/project', 94.5),\n('Meera Sharma', 'https://github.com/meera/engine', 91.2)\nON CONFLICT DO NOTHING;\n`,
+      layer: "database",
+    },
+    {
+      path: ".env.example",
+      language: "bash",
+      description: "Environment configuration template matching the Setup Inspector",
+      code: setupSpec.environmentVariables.map((v) => `# ${v.purpose}\n${v.key}=${v.example}`).join("\n\n"),
+      layer: "root",
+    },
+    {
+      path: "docker-compose.yml",
+      language: "yaml",
+      description: "Multi-container Docker orchestration for PostgreSQL and Backend",
+      code: `version: '3.8'\n\nservices:\n  db:\n    image: postgres:16-alpine\n    container_name: ${slug}_db\n    environment:\n      POSTGRES_DB: ${slug}_db\n      POSTGRES_USER: postgres\n      POSTGRES_PASSWORD: postgres\n    ports:\n      - "5432:5432"\n    volumes:\n      - pgdata:/var/lib/postgresql/data\n      - ./database/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro\n      - ./database/seed.sql:/docker-entrypoint-initdb.d/02-seed.sql:ro\n\n  backend:\n    build: \n      context: .\n      dockerfile: backend/Dockerfile\n    container_name: ${slug}_backend\n    command: uvicorn backend.app.main:app --host 0.0.0.0 --port 8000 --reload\n    ports:\n      - "8000:8000"\n    environment:\n      DATABASE_URL: postgresql+asyncpg://postgres:postgres@db:5432/${slug}_db\n    depends_on:\n      - db\n\nvolumes:\n  pgdata:\n`,
+      layer: "root",
+    },
+  ];
+
+  return files;
+}
+
+export const generateBackendEngine = createServerFn({ method: "POST" })
+  .inputValidator(
+    (data: {
+      blueprint: Blueprint;
+      contract: BackendContractDoc;
+      setupSpec: ProjectSetupSpec;
+    }) => data
+  )
+  .handler(async ({ data }) => {
+    const fallback = generateBackendEngineFallback(data.blueprint, data.contract, data.setupSpec);
+
+    try {
+      const approvedPackagesList = data.setupSpec.backendDependencies
+        .map((d) => `- ${d.name} (${d.version}): ${d.purpose}`)
+        .join("\n");
+
+      const prompt = `You are a Principal Backend Engineer generating Engine 1 (Backend & Database) for: "${data.blueprint.title}".
+
+=== CRITICAL CONTRACT: APPROVED BACKEND DEPENDENCIES ===
+You may ONLY import from the following student-approved packages:
+${approvedPackagesList}
+STRICT RULE: Do NOT import any third-party library not listed above.
+
+=== DATABASE CONTRACT ===
+${data.contract.databaseSchema.rawSqlDdl}
+
+=== REST API ENDPOINTS CONTRACT ===
+${JSON.stringify(data.contract.apiRoutes, null, 2)}
+
+=== ENVIRONMENT VARIABLES ===
+${data.setupSpec.environmentVariables.map((v) => `${v.key}=${v.example}`).join("\n")}
+
+Generate complete, production-grade, interconnected backend source code files implementing this entire specification.
+Format each file with the standard delimiter:
+=== FILE: path/to/file.ext ===
+[Source code here without markdown fences]
+=== END FILE ===
+
+Required files:
+1. backend/${data.setupSpec.backendManifestName}
+2. backend/app/config.py
+3. backend/app/database.py
+4. backend/app/models.py
+5. backend/app/schemas.py
+6. backend/app/routers/api.py
+7. backend/app/main.py
+8. database/schema.sql
+9. database/seed.sql
+10. .env.example
+11. docker-compose.yml
+
+Begin generating backend files now:`;
+
+      const codeText = await generateText({
+        system:
+          "You are a Senior Backend Systems Engineer. " +
+          "You output complete, runnable code files strictly matching the provided database and API contracts.",
+        prompt,
+        temperature: 0.2,
+        maxTokens: 8192,
+        agentName: "Yaduk Engine 1 (Backend Architect)",
+      });
+
+      const parsed = parseDelimitedCodeFiles(codeText);
+      if (parsed.length >= 4) {
+        return parsed;
+      }
+    } catch (err) {
+      console.warn("generateBackendEngine error, falling back to local synthesizer:", err);
+    }
+
+    return fallback;
+  });
+
+export function generateFrontendEngineFallback(
+  blueprint: Blueprint,
+  selectedTheme: string,
+  contract: BackendContractDoc,
+  setupSpec: ProjectSetupSpec
+): GeneratedCodeFile[] {
+  const title = blueprint.title || "Production Software Platform";
+  const slug = title.toLowerCase().replace(/[^a-z0-9]+/g, "-");
+
+  const packageJsonContent = JSON.stringify(
+    {
+      name: `${slug}-frontend`,
+      private: true,
+      version: "1.0.0",
+      type: "module",
+      scripts: {
+        dev: "vite",
+        build: "tsc && vite build",
+        preview: "vite preview",
+      },
+      dependencies: Object.fromEntries(
+        setupSpec.frontendDependencies.filter((d) => !d.isDev).map((d) => [d.name, d.version])
+      ),
+      devDependencies: Object.fromEntries(
+        setupSpec.frontendDependencies.filter((d) => d.isDev).map((d) => [d.name, d.version])
+      ),
+    },
+    null,
+    2
+  );
+
+  const files: GeneratedCodeFile[] = [
+    {
+      path: "frontend/package.json",
+      language: "json",
+      description: "Locked frontend dependencies as approved in Setup Inspector",
+      code: packageJsonContent,
+      layer: "frontend",
+    },
+    {
+      path: "frontend/vite.config.ts",
+      language: "typescript",
+      description: "Vite bundler configuration with React and Tailwind support",
+      code: `import { defineConfig } from 'vite';\nimport react from '@vitejs/plugin-react';\n\nexport default defineConfig({\n  plugins: [react()],\n  server: {\n    port: 5173,\n    proxy: {\n      '/api': {\n        target: process.env.VITE_API_BASE_URL || 'http://localhost:8000',\n        changeOrigin: true,\n      }\n    }\n  }\n});\n`,
+      layer: "frontend",
+    },
+    {
+      path: "frontend/index.html",
+      language: "html",
+      description: "HTML5 entry document mounting the React root",
+      code: `<!DOCTYPE html>\n<html lang="en">\n  <head>\n    <meta charset="UTF-8" />\n    <meta name="viewport" content="width=device-width, initial-scale=1.0" />\n    <title>${title}</title>\n  </head>\n  <body class="bg-slate-950 text-slate-100 antialiased">\n    <div id="root"></div>\n    <script type="module" src="/src/main.tsx"></script>\n  </body>\n</html>\n`,
+      layer: "frontend",
+    },
+    {
+      path: "frontend/src/index.css",
+      language: "css",
+      description: `Tailwind CSS styles configured for the ${selectedTheme} theme aesthetic`,
+      code: `@import "tailwindcss";\n\n@layer base {\n  body {\n    font-family: system-ui, -apple-system, sans-serif;\n    background-color: #090d16;\n    color: #f1f5f9;\n  }\n}\n`,
+      layer: "frontend",
+    },
+    {
+      path: "frontend/src/api/client.ts",
+      language: "typescript",
+      description: "Axios API client connecting to backend endpoints with type safety",
+      code: `import axios from 'axios';\n\nexport const apiClient = axios.create({\n  baseURL: import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000',\n  headers: {\n    'Content-Type': 'application/json',\n  },\n});\n\napiClient.interceptors.response.use(\n  (response) => response,\n  (error) => {\n    console.error('API Error:', error.response?.data || error.message);\n    return Promise.reject(error);\n  }\n);\n\nexport const ApiService = {\n  getHealth: () => apiClient.get('/api/v1/health').then(r => r.data),\n${contract.apiRoutes.map((r, i) => {
+        const fnName = r.route.replace(/[^a-zA-Z0-9]+/g, "_").replace(/^_+|_+$/g, "");
+        const method = r.method.toLowerCase();
+        return `  ${fnName}_${i}: (data?: any) => apiClient.${method}('${r.route}', data).then(r => r.data),`;
+      }).join("\n")}\n};\n`,
+      layer: "frontend",
+    },
+    {
+      path: "frontend/src/App.tsx",
+      language: "typescript",
+      description: "Main application shell with navigation tabs and theme layout",
+      code: `import React, { useState } from 'react';\nimport { Layers, Database, Shield, Zap, Terminal } from 'lucide-react';\n\nexport default function App() {\n  const [activeTab, setActiveTab] = useState('dashboard');\n\n  return (\n    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col">\n      <header className="border-b border-slate-800 bg-slate-900/50 backdrop-blur px-6 py-4 flex items-center justify-between">\n        <div className="flex items-center gap-3">\n          <div className="size-9 rounded-xl bg-blue-600 flex items-center justify-center font-bold text-white shadow-lg shadow-blue-500/20">\n            Y\n          </div>\n          <div>\n            <h1 className="font-bold text-base leading-tight text-white">${title}</h1>\n            <p className="text-xs text-slate-400">Theme: ${selectedTheme} • Connected to Backend API</p>\n          </div>\n        </div>\n        <nav className="flex items-center gap-1 bg-slate-800/80 p-1 rounded-xl text-xs font-semibold">\n          {['dashboard', 'screener', 'settings'].map(tab => (\n            <button\n              key={tab}\n              onClick={() => setActiveTab(tab)}\n              className={\`px-3 py-1.5 rounded-lg capitalize transition-colors \${activeTab === tab ? 'bg-blue-600 text-white' : 'text-slate-400 hover:text-white'}\`}\n            >\n              {tab}\n            </button>\n          ))}\n        </nav>\n      </header>\n      <main className="flex-1 p-6 max-w-6xl mx-auto w-full">\n        <div className="rounded-2xl border border-slate-800 bg-slate-900/40 p-8 text-center space-y-4">\n          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-blue-500/10 text-blue-400 text-xs font-mono font-semibold">\n            <Zap className="size-3.5" /> Two-Engine Production Suite Ready\n          </span>\n          <h2 className="text-2xl font-bold text-white">Full-Stack Application Grounded & Runnable</h2>\n          <p className="text-sm text-slate-400 max-w-xl mx-auto">\n            Built with approved dependencies. Run <code>npm run dev</code> in frontend and <code>uvicorn</code> in backend to begin.\n          </p>\n        </div>\n      </main>\n    </div>\n  );\n}\n`,
+      layer: "frontend",
+    },
+    {
+      path: "frontend/src/main.tsx",
+      language: "typescript",
+      description: "React 19 application bootstrapping entry point",
+      code: `import React from 'react';\nimport ReactDOM from 'react-dom/client';\nimport App from './App';\nimport './index.css';\n\nReactDOM.createRoot(document.getElementById('root')!).render(\n  <React.StrictMode>\n    <App />\n  </React.StrictMode>\n);\n`,
+      layer: "frontend",
+    },
+    {
+      path: "README.md",
+      language: "markdown",
+      description: "Complete production runbook and architecture guide",
+      code: `# ${title}\n\nProduction-grade full stack software suite synthesized by Yaduk AI.\n\n## Architecture\n- **Backend**: ${setupSpec.backendFramework} (${setupSpec.backendLanguage})\n- **Frontend**: ${setupSpec.frontendFramework}\n- **Database**: ${contract.databaseEngine}\n- **Theme**: ${selectedTheme}\n\n## Quickstart Runbook\n${setupSpec.runInstructions.map(i => `### ${i.step}. ${i.title}\n\`\`\`bash\n${i.command}\n\`\`\`\n*${i.note}*\n`).join("\n")}\n`,
+      layer: "root",
+    },
+  ];
+
+  return files;
+}
+
+export const generateFrontendEngine = createServerFn({ method: "POST" })
+  .inputValidator(
+    (data: {
+      blueprint: Blueprint;
+      selectedTheme?: string | undefined;
+      contract: BackendContractDoc;
+      setupSpec: ProjectSetupSpec;
+    }) => data
+  )
+  .handler(async ({ data }) => {
+    const theme = data.selectedTheme || "modern-minimal";
+    const fallback = generateFrontendEngineFallback(data.blueprint, theme, data.contract, data.setupSpec);
+
+    try {
+      const approvedPackagesList = data.setupSpec.frontendDependencies
+        .map((d) => `- ${d.name} (${d.version}): ${d.purpose}`)
+        .join("\n");
+
+      const prompt = `You are a Principal Frontend UI Engineer generating Engine 2 (Frontend & UI) for: "${data.blueprint.title}".
+
+=== CRITICAL CONTRACT: APPROVED FRONTEND DEPENDENCIES ===
+You may ONLY import from the following student-approved packages:
+${approvedPackagesList}
+STRICT RULE: Do NOT import any third-party library not listed above.
+
+=== DESIGN SYSTEM & THEME: "${theme.toUpperCase()}" ===
+Aesthetic: Modern, polished, high-contrast typography, fluid cards, responsive design tokens.
+
+=== SCREEN-TO-API CONTRACT ===
+${JSON.stringify(data.contract.screenMappings, null, 2)}
+
+=== BACKEND API ROUTES ===
+${JSON.stringify(data.contract.apiRoutes, null, 2)}
+
+Generate complete, production-grade frontend source code files implementing the views, API client, and application shell.
+Format each file with the standard delimiter:
+=== FILE: path/to/file.ext ===
+[Source code here without markdown fences]
+=== END FILE ===
+
+Required files:
+1. frontend/package.json
+2. frontend/vite.config.ts
+3. frontend/index.html
+4. frontend/src/index.css
+5. frontend/src/api/client.ts
+6. frontend/src/App.tsx
+7. frontend/src/main.tsx
+8. README.md
+
+Begin generating frontend files now:`;
+
+      const codeText = await generateText({
+        system:
+          "You are an expert Frontend Architect. " +
+          "You output complete, runnable React TypeScript code matching theme styling and backend endpoints with 100% precision.",
+        prompt,
+        temperature: 0.2,
+        maxTokens: 8192,
+        agentName: "Yaduk Engine 2 (Frontend Architect)",
+      });
+
+      const parsed = parseDelimitedCodeFiles(codeText);
+      if (parsed.length >= 4) {
+        return parsed;
+      }
+    } catch (err) {
+      console.warn("generateFrontendEngine error, falling back to local synthesizer:", err);
+    }
+
+    return fallback;
+  });

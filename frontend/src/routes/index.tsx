@@ -14,6 +14,8 @@ import { PlanChangeBar } from "@/components/quest/PlanChangeBar";
 import { ProfileCard } from "@/components/quest/ProfileCard";
 import { ThemeSelection } from "@/components/quest/ThemeSelection";
 import { BackendContractView } from "@/components/quest/BackendContractView";
+import { ProjectSetupInspector } from "@/components/quest/ProjectSetupInspector";
+import { CodebaseExplorerView } from "@/components/quest/CodebaseExplorerView";
 import { QuestHud } from "@/components/quest/QuestHud";
 import { QuestScrollPanel } from "@/components/quest/QuestScroll";
 import { useJourney } from "@/lib/journey";
@@ -30,6 +32,12 @@ import {
   generateBlueprint,
   generateBlueprintScrollFallback,
   generateIdeas,
+  generateProjectSetup,
+  generateProjectSetupFallback,
+  generateBackendEngine,
+  generateBackendEngineFallback,
+  generateFrontendEngine,
+  generateFrontendEngineFallback,
   refineIdeas,
   summarizeBlueprint,
   updateBlueprint,
@@ -37,7 +45,10 @@ import {
 import type {
   BackendContractDoc,
   Blueprint,
+  GeneratedCodeFile,
+  ProjectCodebase,
   ProjectIdea,
+  ProjectSetupSpec,
   QuestScroll,
   StudentProfile,
   Stage,
@@ -338,6 +349,9 @@ function Home() {
   const doUpdateBlueprint = useServerFn(updateBlueprint);
   const doSummarize = useServerFn(summarizeBlueprint);
   const doGenerateBackendContract = useServerFn(generateBackendContract);
+  const doGenerateProjectSetup = useServerFn(generateProjectSetup);
+  const doGenerateBackendEngine = useServerFn(generateBackendEngine);
+  const doGenerateFrontendEngine = useServerFn(generateFrontendEngine);
 
   const selected = state.ideas.find((i) => i.id === state.selectedIdeaId) ?? null;
 
@@ -629,6 +643,145 @@ function Home() {
     }
   }
 
+  async function handleProceedToSetup() {
+    if (!state.blueprint) {
+      toast.error("Please create a blueprint first before configuring setup.");
+      return;
+    }
+
+    const baselineSetup =
+      state.setupSpec ||
+      generateProjectSetupFallback(state.blueprint, effectiveProfile, state.backendContract);
+
+    update({
+      setupSpec: baselineSetup,
+      profile: effectiveProfile,
+      stage: "setup",
+    });
+    award(100, "builder");
+    toast.success("Project setup & dependency specification loaded!");
+
+    try {
+      const enriched = await doGenerateProjectSetup({
+        data: {
+          blueprint: state.blueprint,
+          profile: effectiveProfile,
+          contract: state.backendContract,
+        },
+      });
+      if (enriched?.backendDependencies && enriched.backendDependencies.length > 0) {
+        update({
+          setupSpec: enriched,
+          profile: effectiveProfile,
+        });
+      }
+    } catch (err) {
+      console.warn("Project setup AI enrichment completed with baseline:", err);
+    }
+  }
+
+  async function handleLockSetupAndGenerate(approvedSetup: ProjectSetupSpec) {
+    if (!state.blueprint) {
+      toast.error("Missing project blueprint.");
+      return;
+    }
+
+    const contract =
+      state.backendContract ||
+      generateBackendContractFallback(state.blueprint, effectiveProfile);
+    const theme = state.selectedTheme || "modern-minimal";
+
+    // 1. Immediate baseline codebase
+    const baselineBackend = generateBackendEngineFallback(state.blueprint, contract, approvedSetup);
+    const baselineFrontend = generateFrontendEngineFallback(state.blueprint, theme, contract, approvedSetup);
+    const initialFiles = [...baselineBackend, ...baselineFrontend];
+
+    const initialCodebase: ProjectCodebase = {
+      setupSpec: approvedSetup,
+      files: initialFiles,
+      backendEngineCompleted: true,
+      frontendEngineCompleted: true,
+      activeFilePath: initialFiles[0]?.path || "backend/app/main.py",
+    };
+
+    update({
+      setupSpec: approvedSetup,
+      codebase: initialCodebase,
+      stage: "codebase",
+    });
+    award(150, "coder");
+    toast.success("Locked setup! Two-Engine Codebase initialized.");
+
+    let workingFiles: GeneratedCodeFile[] = initialFiles;
+
+    // 2. Run Engine 1: Backend & Database Synthesis
+    try {
+      setBusy("Engine 1: Synthesizing Backend & Database models...");
+      const backendFiles = await doGenerateBackendEngine({
+        data: {
+          blueprint: state.blueprint,
+          contract,
+          setupSpec: approvedSetup,
+        },
+      });
+
+      if (backendFiles && backendFiles.length > 0) {
+        workingFiles = [
+          ...backendFiles,
+          ...workingFiles.filter((f) => f.layer === "frontend" || f.layer === "root"),
+        ];
+        update({
+          codebase: {
+            setupSpec: approvedSetup,
+            files: workingFiles,
+            backendEngineCompleted: true,
+            frontendEngineCompleted: true,
+            activeFilePath: backendFiles[0]?.path,
+          },
+        });
+        toast.success("Engine 1 (Backend & DB) completed!");
+      }
+    } catch (err) {
+      console.warn("Engine 1 AI generation error, keeping baseline backend:", err);
+    } finally {
+      setBusy(null);
+    }
+
+    // 3. Run Engine 2: Frontend & UI Shell Synthesis
+    try {
+      setBusy("Engine 2: Synthesizing Frontend views & theme components...");
+      const frontendFiles = await doGenerateFrontendEngine({
+        data: {
+          blueprint: state.blueprint,
+          selectedTheme: theme,
+          contract,
+          setupSpec: approvedSetup,
+        },
+      });
+
+      if (frontendFiles && frontendFiles.length > 0) {
+        const nonFrontendFiles = workingFiles.filter(
+          (f) => f.layer === "backend" || f.layer === "database" || f.layer === "root"
+        );
+        workingFiles = [...nonFrontendFiles, ...frontendFiles];
+        update({
+          codebase: {
+            setupSpec: approvedSetup,
+            files: workingFiles,
+            backendEngineCompleted: true,
+            frontendEngineCompleted: true,
+            activeFilePath: frontendFiles[0]?.path || nonFrontendFiles[0]?.path,
+          },
+        });
+        toast.success("Engine 2 (Frontend & UI) completed! Full suite ready.");
+      }
+    } catch (err) {
+      console.warn("Engine 2 AI generation error, keeping baseline frontend:", err);
+    } finally {
+      setBusy(null);
+    }
+  }
+
   const handleStageNavigation = (targetStage: any) => {
     setBusy(null);
     if (targetStage === state.stage) return;
@@ -689,6 +842,28 @@ function Home() {
       }
       setBusy(null);
       update({ stage: "contract" });
+      return;
+    }
+    if (targetStage === "setup") {
+      if (!state.blueprint) {
+        toast.info("Please create your blueprint first.");
+        return;
+      }
+      if (!state.setupSpec) {
+        void handleProceedToSetup();
+        return;
+      }
+      setBusy(null);
+      update({ stage: "setup" });
+      return;
+    }
+    if (targetStage === "codebase") {
+      if (!state.setupSpec) {
+        toast.info("Please review and configure your project setup first.");
+        return;
+      }
+      setBusy(null);
+      update({ stage: "codebase" });
       return;
     }
     update({ stage: targetStage });
@@ -854,6 +1029,109 @@ function Home() {
                 update({ stage: "theme" });
               }}
               onOpenMentor={() => setDockOpen(true)}
+              onProceedToSetup={() => void handleProceedToSetup()}
+            />
+            <MentorDock
+              profile={state.profile || effectiveProfile}
+              blueprint={state.blueprint}
+              askSeed={askSeed}
+              open={dockOpen}
+              onToggle={setDockOpen}
+              onAsked={() => award(40, "apprentice")}
+            />
+          </div>
+        )}
+
+        {showQuest && !busy && state.stage === "setup" && state.blueprint && (
+          <div className="space-y-6">
+            <ProjectSetupInspector
+              setupSpec={
+                state.setupSpec ||
+                generateProjectSetupFallback(
+                  state.blueprint,
+                  effectiveProfile,
+                  state.backendContract
+                )
+              }
+              blueprint={state.blueprint}
+              profile={state.profile || effectiveProfile}
+              onLockSetupAndProceed={(approvedSetup) => void handleLockSetupAndGenerate(approvedSetup)}
+              onBackToContract={() => {
+                setBusy(null);
+                update({ stage: "contract" });
+              }}
+              isGenerating={Boolean(busy)}
+            />
+            <MentorDock
+              profile={state.profile || effectiveProfile}
+              blueprint={state.blueprint}
+              askSeed={askSeed}
+              open={dockOpen}
+              onToggle={setDockOpen}
+              onAsked={() => award(40, "apprentice")}
+            />
+          </div>
+        )}
+
+        {showQuest && !busy && state.stage === "codebase" && state.blueprint && (
+          <div className="space-y-6">
+            <CodebaseExplorerView
+              codebase={
+                state.codebase || {
+                  setupSpec:
+                    state.setupSpec ||
+                    generateProjectSetupFallback(
+                      state.blueprint,
+                      effectiveProfile,
+                      state.backendContract
+                    ),
+                  files: [
+                    ...generateBackendEngineFallback(
+                      state.blueprint,
+                      state.backendContract ||
+                        generateBackendContractFallback(state.blueprint, effectiveProfile),
+                      state.setupSpec ||
+                        generateProjectSetupFallback(
+                          state.blueprint,
+                          effectiveProfile,
+                          state.backendContract
+                        )
+                    ),
+                    ...generateFrontendEngineFallback(
+                      state.blueprint,
+                      state.selectedTheme || "modern-minimal",
+                      state.backendContract ||
+                        generateBackendContractFallback(state.blueprint, effectiveProfile),
+                      state.setupSpec ||
+                        generateProjectSetupFallback(
+                          state.blueprint,
+                          effectiveProfile,
+                          state.backendContract
+                        )
+                    ),
+                  ],
+                  backendEngineCompleted: true,
+                  frontendEngineCompleted: true,
+                  activeFilePath: "backend/app/main.py",
+                }
+              }
+              blueprint={state.blueprint}
+              profile={state.profile || effectiveProfile}
+              onBackToSetup={() => {
+                setBusy(null);
+                update({ stage: "setup" });
+              }}
+              onRegenerateBackend={() => {
+                if (state.setupSpec) {
+                  void handleLockSetupAndGenerate(state.setupSpec);
+                }
+              }}
+              onRegenerateFrontend={() => {
+                if (state.setupSpec) {
+                  void handleLockSetupAndGenerate(state.setupSpec);
+                }
+              }}
+              isGenerating={Boolean(busy)}
             />
             <MentorDock
               profile={state.profile || effectiveProfile}

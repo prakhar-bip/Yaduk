@@ -3,7 +3,9 @@ import type {
   Blueprint,
   Feasibility,
   JourneyState,
+  ProjectCodebase,
   ProjectIdea,
+  ProjectSetupSpec,
   Stage,
   StudentProfile,
 } from "./types";
@@ -330,6 +332,106 @@ CREATE INDEX IF NOT EXISTS idx_screening_candidate ON screening_runs(candidate_i
   markdownSpec: "# SkillForge: Backend Architecture Specification\n\nComprehensive backend design doc for SkillForge.",
 };
 
+export const SAMPLE_SETUP_SPEC: ProjectSetupSpec = {
+  title: "SkillForge Setup & Dependency Contract",
+  backendLanguage: "Python 3.11",
+  backendFramework: "FastAPI",
+  backendManifestName: "requirements.txt",
+  frontendFramework: "React 19 (Vite + TypeScript)",
+  frontendManifestName: "package.json",
+  backendDependencies: [
+    { name: "fastapi", version: ">=0.111.0", purpose: "High-performance asynchronous REST API framework", category: "core" },
+    { name: "uvicorn[standard]", version: ">=0.30.0", purpose: "ASGI production web server", category: "core" },
+    { name: "pydantic", version: ">=2.7.0", purpose: "Data validation and response schemas", category: "core" },
+    { name: "sqlalchemy", version: ">=2.0.30", purpose: "SQLAlchemy async ORM and query builder", category: "database" },
+    { name: "asyncpg", version: ">=0.29.0", purpose: "Async PostgreSQL database driver", category: "database" },
+    { name: "python-jose[cryptography]", version: ">=3.3.0", purpose: "JWT cryptographic signing and verification", category: "auth" },
+    { name: "passlib[bcrypt]", version: ">=1.7.4", purpose: "Password hashing library", category: "auth" },
+  ],
+  frontendDependencies: [
+    { name: "react", version: "^19.0.0", purpose: "Declarative UI component library", category: "core" },
+    { name: "react-dom", version: "^19.0.0", purpose: "React DOM renderer", category: "core" },
+    { name: "axios", version: "^1.7.2", purpose: "Configured API client with error interceptors", category: "utility" },
+    { name: "lucide-react", version: "^0.475.0", purpose: "Clean iconography set", category: "utility" },
+    { name: "tailwindcss", version: "^4.0.0", purpose: "Utility CSS engine", category: "core" },
+  ],
+  devScripts: [
+    { command: "setup", script: "pip install -r backend/requirements.txt && cd frontend && npm install", purpose: "One-step dependency installation" },
+    { command: "dev:backend", script: "uvicorn backend.app.main:app --reload --port 8000", purpose: "Runs FastAPI development server" },
+    { command: "dev:frontend", script: "cd frontend && npm run dev", purpose: "Runs Vite dev server" },
+  ],
+  environmentVariables: [
+    { key: "DATABASE_URL", example: "postgresql://postgres:postgres@localhost:5432/skillforge_db", purpose: "PostgreSQL database connection URI" },
+    { key: "JWT_SECRET_KEY", example: "dev_secret_key_change_in_production", purpose: "JWT cryptographic secret" },
+    { key: "VITE_API_BASE_URL", example: "http://localhost:8000", purpose: "Backend API base URL" },
+  ],
+  fileTreePreview: [
+    { path: "backend/requirements.txt", purpose: "Locked backend dependencies", layer: "backend" },
+    { path: "backend/app/main.py", purpose: "API server entrypoint & CORS", layer: "backend" },
+    { path: "database/schema.sql", purpose: "PostgreSQL DDL schema", layer: "database" },
+    { path: "frontend/package.json", purpose: "Locked frontend dependencies", layer: "frontend" },
+    { path: "frontend/src/App.tsx", purpose: "Root application layout", layer: "frontend" },
+    { path: ".env.example", purpose: "Environment variables template", layer: "root" },
+  ],
+  runInstructions: [
+    { step: 1, title: "Configure Environment", command: "cp .env.example .env", note: "Copy sample configuration" },
+    { step: 2, title: "Install Dependencies", command: "pip install -r backend/requirements.txt && cd frontend && npm install", note: "Install approved packages" },
+    { step: 3, title: "Start Backend", command: "uvicorn backend.app.main:app --reload", note: "API starts at http://localhost:8000" },
+    { step: 4, title: "Launch Frontend", command: "cd frontend && npm run dev", note: "Client starts at http://localhost:5173" },
+  ],
+};
+
+export const SAMPLE_CODEBASE: ProjectCodebase = {
+  setupSpec: SAMPLE_SETUP_SPEC,
+  backendEngineCompleted: true,
+  frontendEngineCompleted: true,
+  activeFilePath: "backend/app/main.py",
+  files: [
+    {
+      path: "backend/requirements.txt",
+      language: "text",
+      description: "Locked backend dependencies",
+      code: "fastapi>=0.111.0\nuvicorn[standard]>=0.30.0\npydantic>=2.7.0\nsqlalchemy>=2.0.30\nasyncpg>=0.29.0\npython-jose[cryptography]>=3.3.0\npasslib[bcrypt]>=1.7.4\n",
+      layer: "backend",
+    },
+    {
+      path: "backend/app/main.py",
+      language: "python",
+      description: "FastAPI server entrypoint with CORS",
+      code: `from fastapi import FastAPI\nfrom fastapi.middleware.cors import CORSMiddleware\n\napp = FastAPI(title="SkillForge API", version="1.0.0")\n\napp.add_middleware(\n    CORSMiddleware,\n    allow_origins=["*"],\n    allow_credentials=True,\n    allow_methods=["*"],\n    allow_headers=["*"],\n)\n\n@app.get("/api/v1/health")\nasync def health():\n    return {"status": "healthy", "service": "skillforge-api"}\n`,
+      layer: "backend",
+    },
+    {
+      path: "database/schema.sql",
+      language: "sql",
+      description: "PostgreSQL DDL schema",
+      code: SAMPLE_BACKEND_CONTRACT.databaseSchema.rawSqlDdl,
+      layer: "database",
+    },
+    {
+      path: "frontend/package.json",
+      language: "json",
+      description: "Locked frontend dependencies",
+      code: JSON.stringify({ name: "skillforge-frontend", version: "1.0.0", type: "module", scripts: { dev: "vite", build: "tsc && vite build" }, dependencies: { react: "^19.0.0", "react-dom": "^19.0.0", axios: "^1.7.2", "lucide-react": "^0.475.0" } }, null, 2),
+      layer: "frontend",
+    },
+    {
+      path: "frontend/src/App.tsx",
+      language: "typescript",
+      description: "Main application layout and views",
+      code: `import React from 'react';\n\nexport default function App() {\n  return (\n    <div className="min-h-screen bg-slate-950 text-white p-8">\n      <h1 className="text-3xl font-bold">SkillForge Application</h1>\n      <p className="text-slate-400 mt-2">Connected to FastAPI Backend</p>\n    </div>\n  );\n}\n`,
+      layer: "frontend",
+    },
+    {
+      path: "README.md",
+      language: "markdown",
+      description: "Project documentation and setup runbook",
+      code: `# SkillForge\n\nFull-stack production application synthesized by Yaduk AI.\n`,
+      layer: "root",
+    },
+  ],
+};
+
 /**
  * Returns a hydrated state payload ensuring that when navigating to ANY stage,
  * all requisite objects exist so the stage renders immediately on single click.
@@ -344,6 +446,8 @@ export function getHydratedStateForStage(
   const feasibility = currentState.feasibility || SAMPLE_FEASIBILITY;
   const blueprint = currentState.blueprint || SAMPLE_BLUEPRINT;
   const backendContract = currentState.backendContract || SAMPLE_BACKEND_CONTRACT;
+  const setupSpec = currentState.setupSpec || SAMPLE_SETUP_SPEC;
+  const codebase = currentState.codebase || SAMPLE_CODEBASE;
 
   switch (targetStage) {
     case "intro":
@@ -362,6 +466,10 @@ export function getHydratedStateForStage(
       return { stage: "theme", profile, blueprint, selectedTheme: currentState.selectedTheme || "modern-minimal" };
     case "contract":
       return { stage: "contract", profile, blueprint, selectedTheme: currentState.selectedTheme || "modern-minimal", backendContract };
+    case "setup":
+      return { stage: "setup", profile, blueprint, selectedTheme: currentState.selectedTheme || "modern-minimal", backendContract, setupSpec };
+    case "codebase":
+      return { stage: "codebase", profile, blueprint, selectedTheme: currentState.selectedTheme || "modern-minimal", backendContract, setupSpec, codebase };
     case "mentor":
       return { stage: "mentor", profile, blueprint };
     default:
