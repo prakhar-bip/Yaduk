@@ -1,10 +1,12 @@
 from fastapi import FastAPI, Request
 from app.core.config import settings
 from app.core.activity_logger import log_activity, print_log_header
-from app.api.endpoints import discovery, projects, gateway, auth
-from app.db.database import engine, Base
+from app.api.endpoints import discovery, projects, gateway, auth, health
+from app.db.database import engine, Base, get_db
 from app.models import student, project, user
 from fastapi.middleware.cors import CORSMiddleware
+from sqlalchemy.orm import Session
+from fastapi import Depends
 
 # Create DB tables safely
 try:
@@ -61,7 +63,13 @@ app.include_router(auth.router, prefix=settings.API_V1_STR + "/auth", tags=["Aut
 app.include_router(discovery.router, prefix=settings.API_V1_STR + "/discovery", tags=["Discovery"])
 app.include_router(projects.router, prefix=settings.API_V1_STR + "/projects", tags=["Projects"])
 app.include_router(gateway.router, prefix=settings.API_V1_STR + "/gateway", tags=["Gateway"])
+app.include_router(health.router, prefix=settings.API_V1_STR + "/health", tags=["Health"])
+
+@app.get("/health", tags=["Health"])
+def root_health(db: Session = Depends(get_db)):
+    return health.check_health(db)
 
 @app.get("/")
 def read_root():
     return {"message": "Welcome to Yaduk AI Backend"}
+
