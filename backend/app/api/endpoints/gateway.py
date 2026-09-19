@@ -61,7 +61,7 @@ def gateway_generate_text(req: GenerateTextRequest):
 @router.post("/chat")
 def gateway_chat(req: ChatRequest):
     """
-    Direct mentor chat response using zero-cost Nvidia NIM.
+    Direct mentor chat response using AWS Bedrock with Groq fallback.
     """
     try:
         system = (

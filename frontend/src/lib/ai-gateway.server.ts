@@ -31,8 +31,7 @@ function getBackendCandidates(): string[] {
 }
 
 /**
- * Calls our FastAPI backend which is powered by zero-cost Nvidia NIM AI (nemotron-3-ultra-550b-a55b).
- * Completely severed from GCP / Vertex AI to prevent any cloud billing charges.
+ * Calls our FastAPI backend powered by AWS Bedrock with high-throughput Groq fallback.
  */
 export async function generateJson<T>(opts: {
   system: string;
@@ -86,7 +85,7 @@ export async function generateJson<T>(opts: {
 }
 
 /**
- * Calls our FastAPI backend for raw code and markdown text generation using Vertex AI Gemini Pro.
+ * Calls our FastAPI backend for raw code and markdown text generation using AWS Bedrock / Groq.
  * Bypasses JSON serialization constraints for multi-file codebases and complex documents.
  * Automatically falls back to /generate-json if /generate-text is not present on the backend.
  */

@@ -13,21 +13,25 @@ class Settings(BaseSettings):
     
     SQLALCHEMY_DATABASE_URI: str = os.getenv("SQLALCHEMY_DATABASE_URI", f"postgresql://{POSTGRES_USER}:{POSTGRES_PASSWORD}@{POSTGRES_SERVER}:{POSTGRES_PORT}/{POSTGRES_DB}")
     
-    # Environment mode: 'development' / 'production' powered 100% by zero-cost Nvidia NIM API
-    ENVIRONMENT: str = os.getenv("ENVIRONMENT", "development")
-    
-    # Google Cloud Vertex AI settings (PERMANENTLY DISABLED to prevent GCP charges)
-    USE_VERTEX_AI: bool = False
-    GCP_PROJECT_ID: str = ""
-    GCP_LOCATION: str = ""
-    GCP_PRIMARY_MODEL: str = ""
-    GCP_SECONDARY_MODEL: str = ""
-    GCP_MODEL: str = ""
+    # Environment mode: 'development' / 'production'
+    ENVIRONMENT: str = os.getenv("ENVIRONMENT", "production")
 
-    # Nvidia AI settings (Zero-Cost Free Tier LLM)
-    NVIDIA_API_KEY: str = os.getenv("NVIDIA_API_KEY", "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")
-    NVIDIA_BASE_URL: str = os.getenv("NVIDIA_BASE_URL", "https://integrate.api.nvidia.com/v1")
-    NVIDIA_MODEL: str = os.getenv("NVIDIA_MODEL", "nvidia/nemotron-3-ultra-550b-a55b")
+    # AWS Bedrock Settings (Primary Track 2 Agent Architecture)
+    AWS_BEDROCK_ENABLED: bool = os.getenv("AWS_BEDROCK_ENABLED", "true").lower() in ("true", "1")
+    AWS_REGION: str = os.getenv("AWS_REGION", os.getenv("AWS_DEFAULT_REGION", "us-east-1"))
+    AWS_ACCESS_KEY_ID: str = os.getenv("AWS_ACCESS_KEY_ID", "")
+    AWS_SECRET_ACCESS_KEY: str = os.getenv("AWS_SECRET_ACCESS_KEY", "")
+    AWS_BEDROCK_MODEL: str = os.getenv("AWS_BEDROCK_MODEL", "anthropic.claude-3-5-sonnet-20241022-v2:0")
+
+    # Groq Fallback AI Settings (High-Throughput Reasoning Engine)
+    GROQ_API_KEY: str = os.getenv("GROQ_API_KEY", "")
+    GROQ_BASE_URL: str = os.getenv("GROQ_BASE_URL", "https://api.groq.com/openai/v1")
+    GROQ_MODEL: str = os.getenv("GROQ_MODEL", "openai/gpt-oss-120b")
+
+    # Backward-compatible aliases for client interfaces
+    NVIDIA_API_KEY: str = os.getenv("NVIDIA_API_KEY", GROQ_API_KEY)
+    NVIDIA_BASE_URL: str = os.getenv("NVIDIA_BASE_URL", GROQ_BASE_URL)
+    NVIDIA_MODEL: str = os.getenv("NVIDIA_MODEL", GROQ_MODEL)
 
     # JWT Authentication settings
     JWT_SECRET_KEY: str = os.getenv("JWT_SECRET_KEY", "yaduk-super-secret-key-core-auth-jwt")

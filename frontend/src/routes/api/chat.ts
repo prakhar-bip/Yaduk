@@ -37,20 +37,31 @@ export const Route = createFileRoute("/api/chat")({
             return new Response("Messages are required", { status: 400 });
           }
 
-          const nvidiaKey =
+          const groqKey =
+            process.env["GROQ_API_KEY"] ||
             process.env["NVIDIA_API_KEY"] ||
-            "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";
+            "";
+
+          const baseURL =
+            process.env["GROQ_BASE_URL"] ||
+            process.env["NVIDIA_BASE_URL"] ||
+            "https://api.groq.com/openai/v1";
+
+          const modelName =
+            process.env["GROQ_MODEL"] ||
+            process.env["NVIDIA_MODEL"] ||
+            "openai/gpt-oss-120b";
 
           const provider = createOpenAICompatible({
-            name: "nvidia",
-            baseURL: "https://integrate.api.nvidia.com/v1",
+            name: "groq",
+            baseURL,
             headers: {
-              Authorization: `Bearer ${nvidiaKey}`,
+              Authorization: `Bearer ${groqKey}`,
             },
           });
 
           const result = streamText({
-            model: provider("nvidia/nemotron-3-ultra-550b-a55b"),
+            model: provider(modelName),
             system: `You are Yaduk, the AI Project Mentor and Architect, dedicated to guiding engineering students through architecting and building top-tier final-year and flagship capstone projects.
 You know their profile and their current project blueprint (JSON below). Answer questions about implementation,
 stack choices, scope, alternatives and complexity. Be concrete and brief (max ~150 words unless asked for depth).
@@ -63,7 +74,7 @@ ${JSON.stringify(context ?? {}).slice(0, 12000)}`,
           });
 
           logTerminalActivity(
-            "Yaduk Chat Mentor Agent (Nvidia NIM: nemotron-3-ultra-550b-a55b)",
+            `Yaduk Chat Mentor Agent (Groq: ${modelName})`,
             true,
             null,
             null,
@@ -72,8 +83,12 @@ ${JSON.stringify(context ?? {}).slice(0, 12000)}`,
           return result.toUIMessageStreamResponse({ originalMessages: messages as UIMessage[] });
         } catch (err: unknown) {
           const errMsg = err instanceof Error ? err.message : String(err);
+          const modelName =
+            process.env["GROQ_MODEL"] ||
+            process.env["NVIDIA_MODEL"] ||
+            "openai/gpt-oss-120b";
           logTerminalActivity(
-            "Yaduk Chat Mentor Agent (Nvidia NIM: nemotron-3-ultra-550b-a55b)",
+            `Yaduk Chat Mentor Agent (Groq: ${modelName})`,
             false,
             errMsg,
             `Reason: ${errMsg}`,

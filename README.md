@@ -24,7 +24,7 @@ Yaduk is engineered as a cloud-native platform deployed directly on **Amazon Web
 │ Backend Microservice │ AWS App Runner / Amazon ECS Fargate (Containerized FastAPI Service)      │
 │ Database Persistence │ Amazon RDS (PostgreSQL) Multi-AZ Managed Relational Database             │
 │ Artifact & Code Zip  │ Amazon S3 Secure Storage Bucket (Generated Architecture Packages)         │
-│ AI & Agent Engine    │ Amazon Bedrock / OpenAI-Compatible AI Gateway Router                     │
+│ AI & Agent Engine    │ Amazon Bedrock (Claude 3.5 / Llama 3.3) with Groq (gpt-oss-120b) Fallback│
 │ Monitoring & Health  │ Amazon CloudWatch Metrics, Alarms, and Container Health Probes           │
 └──────────────────────┴──────────────────────────────────────────────────────────────────────────┘
 ```

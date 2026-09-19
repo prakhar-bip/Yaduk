@@ -6,25 +6,56 @@ from openai import OpenAI
 from app.core.config import settings
 from app.core.activity_logger import log_activity
 
-# Initialize OpenAI client to connect to Nvidia API (100% Free Tier, Zero GCP)
-client = OpenAI(
-    api_key=settings.NVIDIA_API_KEY or "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",
-    base_url=settings.NVIDIA_BASE_URL
+import os
+import boto3
+from openai import OpenAI
+from app.core.config import settings
+from app.core.activity_logger import log_activity
+
+# Groq Client (Fallback / High-Throughput Reasoning Engine)
+groq_client = OpenAI(
+    api_key=settings.GROQ_API_KEY,
+    base_url=settings.GROQ_BASE_URL
 )
 
-def get_vertex_token():
-    return None
+def get_bedrock_client():
+    if not settings.AWS_BEDROCK_ENABLED:
+        return None
+    try:
+        kwargs = {"region_name": settings.AWS_REGION}
+        if settings.AWS_ACCESS_KEY_ID and settings.AWS_SECRET_ACCESS_KEY:
+            kwargs["aws_access_key_id"] = settings.AWS_ACCESS_KEY_ID
+            kwargs["aws_secret_access_key"] = settings.AWS_SECRET_ACCESS_KEY
+        return boto3.client("bedrock-runtime", **kwargs)
+    except Exception:
+        return None
 
-def call_vertex_gemini(prompt: str, system_instruction: str = None, temperature: float = 0.4, max_tokens: int = 8192):
-    raise RuntimeError("Google Cloud Vertex AI is permanently disabled to prevent GCP billing charges.")
+def call_bedrock(prompt: str, system_instruction: str = None, temperature: float = 0.4, max_tokens: int = 4096):
+    client = get_bedrock_client()
+    if not client:
+        raise ValueError("AWS Bedrock client is not configured or disabled.")
+    
+    messages = [{"role": "user", "content": [{"text": prompt}]}]
+    system_prompts = [{"text": system_instruction}] if system_instruction else []
+    
+    response = client.converse(
+        modelId=settings.AWS_BEDROCK_MODEL,
+        messages=messages,
+        system=system_prompts,
+        inferenceConfig={
+            "temperature": temperature,
+            "maxTokens": max_tokens
+        }
+    )
+    return response["output"]["message"]["content"][0]["text"]
 
-def call_nvidia(prompt: str, system_instruction: str = None, temperature: float = 0.4, max_tokens: int = 4096):
+def call_groq(prompt: str, system_instruction: str = None, temperature: float = 0.4, max_tokens: int = 4096):
     messages = []
     if system_instruction:
         messages.append({"role": "system", "content": system_instruction})
     messages.append({"role": "user", "content": prompt})
-    response = client.chat.completions.create(
-        model=settings.NVIDIA_MODEL,
+    response = groq_client.chat.completions.create(
+        model=settings.GROQ_MODEL,
         messages=messages,
         temperature=temperature,
         max_tokens=max_tokens
@@ -39,28 +70,49 @@ def call_llm(
     agent_name: str = "Yaduk AI Agent"
 ):
     """
-    Zero-Cost LLM Router:
-    - Powered 100% by Nvidia NIM Free Tier (settings.NVIDIA_MODEL)
-    - Google Cloud Vertex AI is completely disabled (Zero GCP charges)
+    Production Agentic Router (Track 2: AWS Bedrock + Groq High-Throughput Fallback):
+    1. Attempts AWS Bedrock (Claude 3.5 Sonnet / Llama 3.3 70B on Bedrock) if configured.
+    2. Seamlessly falls back to Groq (openai/gpt-oss-120b) if Bedrock is not configured or fails.
     """
+    # 1. Attempt AWS Bedrock if configured
+    if settings.AWS_BEDROCK_ENABLED and (settings.AWS_ACCESS_KEY_ID or os.getenv("AWS_ACCESS_KEY_ID") or os.getenv("AWS_PROFILE")):
+        try:
+            res = call_bedrock(prompt, system_instruction, temperature, max_tokens)
+            log_activity(
+                agent=f"{agent_name} (AWS Bedrock: {settings.AWS_BEDROCK_MODEL})",
+                success=True,
+                error=None,
+                warning_reason=None
+            )
+            return res
+        except Exception as e_bedrock:
+            bedrock_err = str(e_bedrock)
+            log_activity(
+                agent=f"{agent_name} (AWS Bedrock)",
+                success=False,
+                error=f"{type(e_bedrock).__name__}: {bedrock_err}",
+                warning_reason=f"Bedrock invocation failed, falling back to Groq: {bedrock_err}"
+            )
+
+    # 2. Fallback to Groq (openai/gpt-oss-120b)
     try:
-        res = call_nvidia(prompt, system_instruction, temperature, max_tokens)
+        res = call_groq(prompt, system_instruction, temperature, max_tokens)
         log_activity(
-            agent=f"{agent_name} (Nvidia NIM: {settings.NVIDIA_MODEL})",
+            agent=f"{agent_name} (Groq: {settings.GROQ_MODEL})",
             success=True,
             error=None,
             warning_reason=None
         )
         return res
-    except Exception as e_nvidia:
-        nvidia_err = str(e_nvidia)
+    except Exception as e_groq:
+        groq_err = str(e_groq)
         log_activity(
-            agent=f"{agent_name} (Nvidia NIM)",
+            agent=f"{agent_name} (Groq)",
             success=False,
-            error=f"{type(e_nvidia).__name__}: {nvidia_err}",
-            warning_reason=f"Reason: Nvidia NIM generation failed ({nvidia_err})"
+            error=f"{type(e_groq).__name__}: {groq_err}",
+            warning_reason=f"Reason: Groq generation failed ({groq_err})"
         )
-        raise RuntimeError(f"AI generation failed: {nvidia_err}")
+        raise RuntimeError(f"AI generation failed across Bedrock and Groq: {groq_err}")
 
 
 def _repair_and_parse_json(text: str):
