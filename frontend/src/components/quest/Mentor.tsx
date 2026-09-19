@@ -1,9 +1,31 @@
 import Markdown from "react-markdown";
+import remarkGfm from "remark-gfm";
+import rehypeRaw from "rehype-raw";
 import { useEffect, useRef, useState } from "react";
 import type { Blueprint, StudentProfile } from "@/lib/types";
 import { TOPIC_METADATA, type TopicType } from "@/lib/mentor-knowledge";
 import { YadukLogo } from "./YadukLogo";
 import { Send, Sparkles, X, RotateCcw, BookOpen } from "lucide-react";
+
+function formatMentorMarkdown(raw: string): string {
+  if (!raw) return "";
+  let text = raw;
+
+  // 1. Fix collapsed table rows where newlines were omitted between rows
+  // e.g. "| header | |---| | data |" -> "| header |\n|---|\n| data |"
+  text = text.replace(/\|\s*\|\s*/g, "|\n| ");
+
+  // 2. Normalize <br> or <br/> tags to valid self-closing <br />
+  text = text.replace(/<br\s*\/?>/gi, "<br />");
+
+  // 3. Ensure table blocks are preceded by a blank line for CommonMark parsing
+  text = text.replace(/([^\n])\n(\|[^\n]+\|)/g, "$1\n\n$2");
+
+  // 4. Ensure headers have space after #
+  text = text.replace(/^(\#{1,6})([^\s\#])/gm, "$1 $2");
+
+  return text;
+}
 
 type ChatMessage = {
   id: string;
@@ -232,7 +254,9 @@ export function Mentor({
                       <span>Blueprint Reference: {TOPIC_METADATA[m.topic].label}</span>
                     </div>
                   )}
-                  <Markdown>{m.text}</Markdown>
+                  <Markdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeRaw]}>
+                    {formatMentorMarkdown(m.text)}
+                  </Markdown>
                 </>
               )}
             </div>
