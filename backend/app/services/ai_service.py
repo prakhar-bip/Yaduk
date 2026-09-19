@@ -91,7 +91,10 @@ def get_groq_client():
         return None
     return OpenAI(
         api_key=api_key,
-        base_url=settings.GROQ_BASE_URL
+        base_url=settings.GROQ_BASE_URL,
+        default_headers={
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36"
+        }
     )
 
 def call_groq(prompt: str, system_instruction: str = None, temperature: float = 0.4, max_tokens: int = 4096):
@@ -103,13 +106,14 @@ def call_groq(prompt: str, system_instruction: str = None, temperature: float = 
         messages.append({"role": "system", "content": system_instruction})
     messages.append({"role": "user", "content": prompt})
     response = client.chat.completions.create(
-        model=settings.GROQ_MODEL,
+        model="openai/gpt-oss-120b",
         messages=messages,
         temperature=temperature,
         max_tokens=max_tokens,
         timeout=settings.GROQ_TIMEOUT
     )
-    return response.choices[0].message.content
+    msg = response.choices[0].message
+    return msg.content or getattr(msg, "reasoning", "") or ""
 
 def call_llm(
     prompt: str,

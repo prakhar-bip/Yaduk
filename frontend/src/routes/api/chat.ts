@@ -46,7 +46,62 @@ export const Route = createFileRoute("/api/chat")({
             }));
             messages.push({ role: "user", content: userPrompt });
 
-            // Strategy A: Route through Elastic Beanstalk API Gateway
+            const groqKey = process.env["GROQ_API_KEY"] || "";
+
+            // Strategy A: Direct Groq API strictly using openai/gpt-oss-120b with Cloudflare WAF bypass header
+            if (groqKey) {
+              try {
+                const groqRes = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+                  method: "POST",
+                  headers: {
+                    "Content-Type": "application/json",
+                    Authorization: `Bearer ${groqKey}`,
+                    "User-Agent":
+                      "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36",
+                  },
+                  body: JSON.stringify({
+                    model: "openai/gpt-oss-120b",
+                    messages: [
+                      {
+                        role: "system",
+                        content: `You are Yaduk, the AI Project Mentor and Architect. Guide engineering students through architecting and building top-tier final-year projects. Answer questions with concrete, clear, and actionable advice.\nCONTEXT:\n${JSON.stringify(body.context || {}).slice(0, 10000)}`,
+                      },
+                      ...messages,
+                    ],
+                    max_tokens: 1500,
+                    temperature: 0.6,
+                  }),
+                  signal: AbortSignal.timeout(20000),
+                });
+
+                if (groqRes.ok) {
+                  const groqData = await groqRes.json();
+                  const choice = groqData.choices?.[0]?.message;
+                  const reply = choice?.content || choice?.reasoning || "";
+                  if (reply) {
+                    logTerminalActivity(
+                      "Yaduk Chat Mentor Agent (Groq: openai/gpt-oss-120b)",
+                      true,
+                      null,
+                      null,
+                    );
+                    return new Response(JSON.stringify({ text: reply }), {
+                      status: 200,
+                      headers: { "Content-Type": "application/json" },
+                    });
+                  }
+                }
+              } catch (groqErr: any) {
+                logTerminalActivity(
+                  "Yaduk Chat Mentor Agent (Groq Fallback)",
+                  false,
+                  groqErr?.message || String(groqErr),
+                  "Direct Groq failed, routing to Elastic Beanstalk gateway",
+                );
+              }
+            }
+
+            // Strategy B: Route through Elastic Beanstalk API Gateway (which runs openai/gpt-oss-120b)
             try {
               const ebRes = await fetch(`${BACKEND_URL}/api/gateway/chat`, {
                 method: "POST",
@@ -82,7 +137,7 @@ export const Route = createFileRoute("/api/chat")({
               );
             }
 
-            // Strategy B: Fallback directly to Nvidia NIM
+            // Strategy C: Fallback directly to Nvidia NIM
             try {
               const nvidiaKey = process.env["NVIDIA_API_KEY"] || "";
               const nvidiaBase =
@@ -134,7 +189,7 @@ export const Route = createFileRoute("/api/chat")({
               );
             }
 
-            // Strategy C: Resilient default mentor guidance
+            // Strategy D: Resilient default mentor guidance
             return new Response(
               JSON.stringify({
                 text: "I am ready to help you build your project! Focus on setting up your core database schema and primary API endpoints first before building the frontend interface.",
@@ -157,32 +212,62 @@ export const Route = createFileRoute("/api/chat")({
             return new Response("Message parameter is required", { status: 400 });
           }
 
-          const nvidiaKey = process.env["NVIDIA_API_KEY"] || "";
           const groqKey = process.env["GROQ_API_KEY"] || "";
+          const nvidiaKey = process.env["NVIDIA_API_KEY"] || "";
 
-          // Prioritize verified Nvidia NIM, then Groq
-          const useNvidia = Boolean(nvidiaKey);
-          const baseURL = useNvidia
-            ? (process.env["NVIDIA_BASE_URL"] || "https://integrate.api.nvidia.com/v1")
-            : (process.env["GROQ_BASE_URL"] || "https://api.groq.com/openai/v1");
+          // Strictly use openai/gpt-oss-120b with Groq, with User-Agent header
+          if (groqKey) {
+            const provider = createOpenAICompatible({
+              name: "groq",
+              baseURL: process.env["GROQ_BASE_URL"] || "https://api.groq.com/openai/v1",
+              headers: {
+                Authorization: `Bearer ${groqKey}`,
+                "User-Agent":
+                  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36",
+              },
+            });
 
-          const apiKey = useNvidia ? nvidiaKey : groqKey;
-          const modelName = useNvidia
-            ? (process.env["NVIDIA_MODEL"] || "nvidia/nemotron-3-ultra-550b-a55b")
-            : (process.env["GROQ_MODEL"] || "llama-3.3-70b-versatile");
+            const result = streamText({
+              model: provider("openai/gpt-oss-120b"),
+              system: `You are Yaduk, the AI Project Mentor and Architect, dedicated to guiding engineering students through architecting and building top-tier final-year and flagship capstone projects.
+You know their profile and their current project blueprint (JSON below). Answer questions about implementation,
+stack choices, scope, alternatives and complexity. Be concrete and brief (max ~150 words unless asked for depth).
+Use plain, friendly language.
+This is a discussion space: answer doubts, talk through problems, and give guidance.
 
-          const providerName = useNvidia ? "nvidia" : "groq";
+CONTEXT:
+${JSON.stringify(body.context ?? {}).slice(0, 12000)}`,
+              messages: await convertToModelMessages(body.messages as UIMessage[]),
+            });
+
+            logTerminalActivity(
+              "Yaduk Chat Mentor Agent (Groq: openai/gpt-oss-120b)",
+              true,
+              null,
+              null,
+            );
+
+            return result.toUIMessageStreamResponse({
+              originalMessages: body.messages as UIMessage[],
+            });
+          }
+
+          // Secondary Fallback Streaming via Nvidia NIM
+          const nvidiaBase =
+            process.env["NVIDIA_BASE_URL"] || "https://integrate.api.nvidia.com/v1";
+          const nvidiaModel =
+            process.env["NVIDIA_MODEL"] || "nvidia/nemotron-3-ultra-550b-a55b";
 
           const provider = createOpenAICompatible({
-            name: providerName,
-            baseURL,
+            name: "nvidia",
+            baseURL: nvidiaBase,
             headers: {
-              Authorization: `Bearer ${apiKey}`,
+              Authorization: `Bearer ${nvidiaKey}`,
             },
           });
 
           const result = streamText({
-            model: provider(modelName),
+            model: provider(nvidiaModel),
             system: `You are Yaduk, the AI Project Mentor and Architect, dedicated to guiding engineering students through architecting and building top-tier final-year and flagship capstone projects.
 You know their profile and their current project blueprint (JSON below). Answer questions about implementation,
 stack choices, scope, alternatives and complexity. Be concrete and brief (max ~150 words unless asked for depth).
@@ -195,7 +280,7 @@ ${JSON.stringify(body.context ?? {}).slice(0, 12000)}`,
           });
 
           logTerminalActivity(
-            `Yaduk Chat Mentor Agent (${providerName.toUpperCase()}: ${modelName})`,
+            `Yaduk Chat Mentor Agent (NVIDIA NIM: ${nvidiaModel})`,
             true,
             null,
             null,
