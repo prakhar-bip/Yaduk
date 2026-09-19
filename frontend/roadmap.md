@@ -1,4 +1,4 @@
-# Yaduk (by Yaduka) — Roadmap
+# Yaduk — Roadmap
 
 - [x] Discovery quest (skills, interests, goals, constraints)
 - [x] Dynamic student profile

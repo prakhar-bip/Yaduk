@@ -64,7 +64,7 @@ export function RepoForgeModal({
   // GitHub Form State
   const [repoName, setRepoName] = useState(defaultRepoName);
   const [description, setDescription] = useState(
-    prototype?.tagline || prototype?.architectureSummary || "Scaffolded with Yaduk AI Architect by Yaduka"
+    prototype?.tagline || prototype?.architectureSummary || "Scaffolded with Yaduk AI Architect"
   );
   const [isPrivate, setIsPrivate] = useState(false);
   const [token, setToken] = useState("");
@@ -101,7 +101,7 @@ export function RepoForgeModal({
   useEffect(() => {
     setRepoName(defaultRepoName);
     setDescription(
-      prototype?.tagline || prototype?.architectureSummary || "Scaffolded with Yaduk AI Architect by Yaduka"
+      prototype?.tagline || prototype?.architectureSummary || "Scaffolded with Yaduk AI Architect"
     );
     setPushResult(null);
   }, [prototype?.title, blueprint?.title]);
@@ -644,7 +644,7 @@ export function RepoForgeModal({
         {/* Modal Footer */}
         <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 bg-slate-50/50 px-6 py-4">
           <span className="text-[11px] text-slate-500">
-            Powered by Yaduk AI Architecture Engine (by Yaduka)
+            Powered by Yaduk AI Architecture Engine
           </span>
           <button
             type="button"

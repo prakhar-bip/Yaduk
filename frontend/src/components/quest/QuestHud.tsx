@@ -41,8 +41,8 @@ export function QuestHud({
           <div className="leading-tight">
             <div className="flex items-center gap-1.5">
               <span className="font-display text-lg font-bold text-slate-900">Yaduk</span>
-              <span className="rounded bg-sky-50 px-1 py-0.2 text-[9px] font-semibold text-sky-700 border border-sky-200">
-                by Yaduka
+              <span className="rounded bg-sky-50 px-1.5 py-0.5 text-[9px] font-semibold text-sky-700 border border-sky-200 uppercase tracking-wider">
+                AI PLATFORM
               </span>
             </div>
             <p className="text-[11px] font-medium text-slate-500">Project Architect & Planner</p>

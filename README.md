@@ -1,47 +1,38 @@
-# Yaduk (by Yaduka) — AI-Powered Project Discovery & Architecture Blueprint Engine
+# Yaduk — AI-Powered Project Discovery & Architecture Blueprint Engine
 
 > **Yaduk** *(noun, Sanskrit / Indic root)*: Focused strategic guidance and purposeful execution.  
-> Under the **Yaduka** ecosystem, Yaduk serves as the intelligent architect and mentor for engineering students, transforming raw curiosity, skills, and constraints into verified, production-grade final-year and flagship capstone projects.
+> Yaduk serves as an intelligent architect and mentor for engineering students, transforming raw curiosity, technical skills, and constraints into verified, production-grade final-year and flagship capstone projects.
 
-[![AWS Cloud Architecture](https://img.shields.io/badge/AWS%20Cloud-App%20Runner%20%7C%20Amplify%20%7C%20RDS-orange?style=for-the-badge&logo=amazon-aws)](https://aws.amazon.com)
+[![AWS Cloud Deployment](https://img.shields.io/badge/AWS%20Cloud-App%20Runner%20%7C%20Amplify%20%7C%20RDS-orange?style=for-the-badge&logo=amazon-aws)](https://aws.amazon.com)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg?style=for-the-badge)](https://opensource.org/licenses/MIT)
 [![Frontend](https://img.shields.io/badge/Frontend-React%2019%20%7C%20TanStack-61DAFB?style=for-the-badge&logo=react)](https://tanstack.com)
 [![Backend](https://img.shields.io/badge/Backend-FastAPI%20%7C%20Python%203.12-009688?style=for-the-badge&logo=fastapi)](https://fastapi.tiangolo.com)
 
 ---
 
-## 🚀 Cloud & Enterprise Architecture: Dual-Mode Deployment
+## 🚀 Cloud Production Architecture (AWS Live Deployment)
 
-Yaduk is engineered with a scalable enterprise dual-mode deployment model:
+Yaduk is engineered as a cloud-native platform deployed directly on **Amazon Web Services (AWS)** to provide a persistent, highly-available live application:
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────────────────────────┐
-│                              DUAL-MODE ARCHITECTURE OVERVIEW                                    │
-├──────────────────────┬────────────────────────────────────┬─────────────────────────────────────┤
-│ CAPABILITY           │ LOCAL / SELF-HOSTED                │ CLOUD DEPLOYED (AWS PRODUCTION)     │
-│                      │ Zero-cost local developer mode     │ Scalable multi-tenant cloud tier    │
-├──────────────────────┼────────────────────────────────────┼─────────────────────────────────────┤
-│ Agents and AI        │ Local AI Inference, Strands SDK    │ SageMaker / AI Gateway Router       │
-│ Containers & K8s     │ Finch, Docker Container Engine     │ AWS App Runner, ECS Fargate         │
-│ Web & Hosting        │ Local TanStack / Vite Server       │ AWS Amplify Hosting, CloudFront CDN │
-│ Data & Search        │ OpenSearch, Local PostgreSQL       │ Amazon RDS PostgreSQL, Amazon S3    │
-│ Auth and Policy      │ Cedar Policy Language              │ Amazon Cognito / JWT Auth           │
-│ The Plumbing         │ Local Bridge Networking            │ CloudWatch, Route 53, EventBridge   │
-└──────────────────────┴────────────────────────────────────┴─────────────────────────────────────┘
+│                                 AWS PRODUCTION ARCHITECTURE                                     │
+├──────────────────────┬──────────────────────────────────────────────────────────────────────────┤
+│ COMPONENT            │ AWS SERVICE & SPECIFICATION                                              │
+├──────────────────────┼──────────────────────────────────────────────────────────────────────────┤
+│ Frontend Web App     │ AWS Amplify Hosting + Amazon CloudFront Global CDN (Edge SSR)            │
+│ Backend Microservice │ AWS App Runner / Amazon ECS Fargate (Containerized FastAPI Service)      │
+│ Database Persistence │ Amazon RDS (PostgreSQL) Multi-AZ Managed Relational Database             │
+│ Artifact & Code Zip  │ Amazon S3 Secure Storage Bucket (Generated Architecture Packages)         │
+│ AI & Agent Engine    │ Amazon Bedrock / OpenAI-Compatible AI Gateway Router                     │
+│ Monitoring & Health  │ Amazon CloudWatch Metrics, Alarms, and Container Health Probes           │
+└──────────────────────┴──────────────────────────────────────────────────────────────────────────┘
 ```
 
-### 1. Cloud Production Deployment (AWS)
-- **Web Frontend**: Automated CI/CD deployment on **AWS Amplify Hosting** with global edge acceleration via **Amazon CloudFront**.
-- **Backend API**: Containerized microservice running on **AWS App Runner** / **AWS ECS Fargate** with auto-scaling and health probes.
-- **Relational Data**: Production persistence with **Amazon RDS (PostgreSQL)**.
-- **Artifact Storage**: Blueprint exports and packaged starter codebases stored in **Amazon S3**.
-- **User Authentication**: Secure token authentication with **Amazon Cognito** / JWT token sessions.
-
-### 2. Local Self-Hosted Mode (Open Source)
-- Runs 100% locally with zero cloud subscription fees or external dependencies.
-- Uses **Finch** (AWS's open-source container engine) and Docker for lightweight local containerization.
-- Fine-grained project authorization rules specified with **Cedar** policies.
-- Fast vector similarity and keyword search for 100+ project ideas using **OpenSearch**.
+- **Live Web Frontend**: Automated deployment via **AWS Amplify Hosting** backed by **Amazon CloudFront** edge distribution for low-latency delivery.
+- **High-Throughput Backend**: Containerized Python microservice orchestrated on **AWS App Runner** with built-in auto-scaling, SSL termination, and health check endpoints.
+- **Relational Data**: Managed **Amazon RDS PostgreSQL** instance providing persistent storage for student profiles, feasibility reports, and generated blueprints.
+- **Storage & Forge**: Blueprint downloads and codebase packages served directly from **Amazon S3**.
 
 ---
 
@@ -118,5 +109,5 @@ Open your browser at `http://localhost:3000` (or `http://localhost:5173`).
 
 ---
 
-## 🏛️ Ecosystem: Yaduka
-**Yaduk** is engineered under the **Yaduka** ecosystem, democratizing access to senior-level software architecture and project planning for engineering students and developers worldwide.
+## 🏛️ About Yaduk
+**Yaduk** is an independent, developer-first systems engineering platform dedicated to democratizing access to senior-level software architecture, feasibility validation, and interactive mentorship for engineering students and creators worldwide.

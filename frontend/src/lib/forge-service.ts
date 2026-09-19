@@ -35,7 +35,7 @@ export function buildForgeFileTree(options: {
 
   const projectTitle = prototype?.title || blueprint?.title || "Yaduk Project";
   const projectSlug = projectTitle.toLowerCase().replace(/[^a-z0-9]/g, "-").replace(/-+/g, "-");
-  const projectSummary = prototype?.architectureSummary || blueprint?.overview?.summary || "Project crafted with Yaduk AI by Yaduka";
+  const projectSummary = prototype?.architectureSummary || blueprint?.overview?.summary || "Project crafted with Yaduk AI";
 
   // 1. Check if production codebase files exist
   const sourceFiles: PrototypeFile[] =
@@ -216,7 +216,7 @@ env/
 
 > ${projectSummary}
 
-[![Built with Yaduk AI](https://img.shields.io/badge/Architected%20by-Yaduk%20AI%20(Yaduka)-0284c7.svg)](https://github.com)
+[![Built with Yaduk AI](https://img.shields.io/badge/Architected%20by-Yaduk%20AI-0284c7.svg)](https://github.com)
 [![TypeScript](https://img.shields.io/badge/TypeScript-007acc.svg?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
 [![Vite](https://img.shields.io/badge/Vite-646CFF.svg?logo=vite&logoColor=white)](https://vitejs.dev/)
 
@@ -258,7 +258,7 @@ ${mvpFeaturesSection}
 
 ---
 
-## 🏛️ Generated with Yaduk AI (by Yaduka)
+## 🏛️ Generated with Yaduk AI
 *Crafted for student innovators and capstone creators.*
 `;
   }
@@ -411,7 +411,7 @@ export async function pushToGitHubRepo(
       headers: authHeaders,
       body: JSON.stringify({
         name: config.name,
-        description: config.description || "Scaffolded with Yaduk AI Architect by Yaduka",
+        description: config.description || "Scaffolded with Yaduk AI Architect",
         private: config.isPrivate,
         auto_init: true, // initializes with an initial commit on 'main'
       }),
@@ -504,7 +504,7 @@ export async function pushToGitHubRepo(
     // 5. Create Commit
     onProgress?.("committing", "Creating Git commit: 'Initial commit: Yaduk AI Forge'...");
     const commitPayload: any = {
-      message: "Initial commit: Architecture & starter codebase forged with Yaduk AI by Yaduka",
+      message: "Initial commit: Architecture & starter codebase forged with Yaduk AI",
       tree: newTreeSha,
       parents: baseCommitSha ? [baseCommitSha] : [],
     };
@@ -589,7 +589,7 @@ Set-Location "./${repoName}"
 # 2. Extract your downloaded Yaduk starter ZIP here, then initialize Git:
 git init -b main
 git add .
-git commit -m "Initial commit from Yaduk AI Architecture Forge by Yaduka"
+git commit -m "Initial commit from Yaduk AI Architecture Forge"
 
 # 3. Use the official GitHub CLI to forge and push your repository in 1 step:
 gh repo create ${repoName} ${visibilityFlag} --source=. --remote=origin --push
@@ -607,7 +607,7 @@ mkdir -p "${repoName}" && cd "${repoName}"
 # 2. Extract your downloaded Yaduk starter ZIP here, then initialize Git:
 git init -b main
 git add .
-git commit -m "Initial commit from Yaduk AI Architecture Forge by Yaduka"
+git commit -m "Initial commit from Yaduk AI Architecture Forge"
 
 # 3. Use GitHub CLI to create and push your remote repository:
 gh repo create "${repoName}" ${visibilityFlag} --source=. --remote=origin --push

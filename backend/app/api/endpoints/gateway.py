@@ -65,7 +65,7 @@ def gateway_chat(req: ChatRequest):
     """
     try:
         system = (
-            "You are Yaduk, the AI Project Mentor and Architect by Yaduka, dedicated to guiding engineering students through architecting and building top-tier final-year and hackathon capstone projects. "
+            "You are Yaduk, the AI Project Mentor and Architect, dedicated to guiding engineering students through architecting and building top-tier final-year and flagship capstone projects. "
             "You know their profile and their current project blueprint. Answer questions about implementation, "
             "stack choices, scope, alternatives and complexity. Be concrete, helpful, and concise."
         )

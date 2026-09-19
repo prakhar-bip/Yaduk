@@ -38,17 +38,17 @@ import type { ProjectIdea, StudentProfile, Stage } from "@/lib/types";
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
-      { title: "Yaduk — AI Final-Year Project Planner & Architect | Yaduka" },
+      { title: "Yaduk — AI Final-Year Project Planner & Architect" },
       {
         name: "description",
         content:
-          "Yaduk: Turn your skills, interests and goals into a matched final-year project idea, a feasibility check and a full build blueprint — guided by an AI project architect by Yaduka.",
+          "Yaduk: Turn your skills, interests and goals into a matched final-year project idea, a feasibility check and a full build blueprint — guided by an AI project architect.",
       },
       { property: "og:title", content: "Yaduk — AI Final-Year Project Planner & Architect" },
       {
         property: "og:description",
         content:
-          "Discover, score, refine and plan your final-year project with Yaduk — your AI architect and mentor by Yaduka.",
+          "Discover, score, refine and plan your final-year project with Yaduk — your AI architect and mentor.",
       },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },

@@ -64,4 +64,4 @@ app.include_router(gateway.router, prefix=settings.API_V1_STR + "/gateway", tags
 
 @app.get("/")
 def read_root():
-    return {"message": "Welcome to Yaduk AI Backend by Yaduka"}
+    return {"message": "Welcome to Yaduk AI Backend"}

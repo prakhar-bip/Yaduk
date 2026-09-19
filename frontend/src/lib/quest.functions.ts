@@ -14,7 +14,7 @@ import type {
 } from "./types";
 
 const SYSTEM =
-  "You are Yaduk, an expert final-year project advisor and systems architect by Yaduka for engineering students. " +
+  "You are Yaduk, an expert final-year project advisor and systems architect for engineering students. " +
   "You are pragmatic, specific and encouraging. You never invent unrealistic scope. " +
   "Everything you write must be concrete: real technologies, real user groups, real numbers.";
 
@@ -633,7 +633,7 @@ Solution: ${data.blueprint.overview.proposedSolution}
 Target Users: ${data.blueprint.overview.targetUsers}
 Tech Stack: ${data.blueprint.stack.map((s) => s.name).join(", ")}
 
-As Yaduk (AI project architect & design advisor by Yaduka), analyze the domain, problem statement, target audience, and technology of this engineering project.
+As Yaduk (AI project architect & design advisor), analyze the domain, problem statement, target audience, and technology of this engineering project.
 Devise 3 distinct, creative, and highly tailored UI design theme suggestions that would make this specific project stand out in college evaluations, hackathons, or supervisor presentations.
 Every suggestion MUST be deeply customized to "${data.blueprint.title}" and its specific problem domain. Do not produce generic themes.
 

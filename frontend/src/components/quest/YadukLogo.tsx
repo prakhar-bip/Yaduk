@@ -115,8 +115,8 @@ export function YadukLogo({
           <span className={`font-display text-xl font-bold tracking-tight text-slate-900 ${textClassName}`}>
             Yaduk
           </span>
-          <span className="rounded-md bg-sky-50 px-1.5 py-0.5 text-[10px] font-bold text-sky-700 border border-sky-200">
-            by Yaduka
+          <span className="rounded-md bg-sky-50 px-1.5 py-0.5 text-[10px] font-bold text-sky-700 border border-sky-200 uppercase tracking-wide">
+            AI
           </span>
         </div>
         <span className="text-[11px] font-medium text-slate-500 hidden sm:block">
