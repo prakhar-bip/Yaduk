@@ -661,7 +661,7 @@ export function ThemeSelection({
       </div>
 
       {/* Sticky Bottom Floating Bar */}
-      <div className="rounded-2xl border border-slate-200/80 bg-white/95 backdrop-blur-md p-4 flex flex-wrap items-center justify-between gap-4 sticky bottom-4 z-20 shadow-xl">
+      <div className="rounded-2xl border border-slate-200/80 bg-white/95 backdrop-blur-md p-4 pr-36 sm:pr-44 flex flex-wrap items-center justify-between gap-4 sticky bottom-4 z-20 shadow-xl">
         <div className="flex items-center gap-3">
           <span
             className="size-3.5 rounded-full animate-pulse"
@@ -684,7 +684,7 @@ export function ThemeSelection({
           <button
             type="button"
             onClick={onBack}
-            className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 cursor-pointer shadow-xs transition-all"
+            className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 cursor-pointer shadow-xs transition-all [&_svg]:pointer-events-none [&_span]:pointer-events-none"
           >
             <ArrowLeft className="size-3.5" />
             <span>Back to Plan</span>
@@ -693,7 +693,7 @@ export function ThemeSelection({
             type="button"
             onClick={handleProceed}
             disabled={isGenerating}
-            className="inline-flex items-center gap-2 rounded-xl px-4 py-2 text-xs sm:text-sm font-bold text-white shadow-sm transition-all cursor-pointer disabled:opacity-50"
+            className="inline-flex items-center gap-2 rounded-xl px-4 py-2 text-xs sm:text-sm font-bold text-white shadow-sm transition-all cursor-pointer disabled:opacity-50 relative z-10 [&_svg]:pointer-events-none [&_span]:pointer-events-none hover:opacity-90 active:scale-98"
             style={{ backgroundColor: primaryColor }}
           >
             <Wand2 className={`size-4 ${isGenerating ? "animate-spin" : ""}`} />

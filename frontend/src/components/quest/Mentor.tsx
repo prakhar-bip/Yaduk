@@ -131,7 +131,7 @@ export function Mentor({
   return (
     <section
       className={`panel flex flex-col overflow-hidden border border-slate-200/80 bg-white shadow-xl shadow-blue-500/5 ${
-        compact ? "h-[30rem]" : "h-[40rem] lg:h-[46rem]"
+        compact ? "h-[32rem] sm:h-[36rem]" : "h-[40rem] lg:h-[46rem]"
       }`}
     >
       {/* Header */}
@@ -189,7 +189,7 @@ export function Mentor({
       </div>
 
       {/* Messages area */}
-      <div className="flex-1 space-y-3.5 overflow-y-auto p-5">
+      <div className="flex-1 space-y-3.5 overflow-y-auto overflow-x-hidden p-4 sm:p-5 min-w-0">
         {messages.length === 0 && (
           <div className="space-y-3.5 rounded-2xl border border-blue-100 bg-blue-50/40 p-4">
             <div className="flex items-center gap-2 text-xs font-bold text-blue-700">
@@ -214,9 +214,9 @@ export function Mentor({
         )}
 
         {messages.map((m) => (
-          <div key={m.id} className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}>
+          <div key={m.id} className={`flex w-full min-w-0 ${m.role === "user" ? "justify-end" : "justify-start"}`}>
             <div
-              className={`q-rise max-w-[88%] text-xs sm:text-sm leading-relaxed ${
+              className={`q-rise w-full max-w-[92%] sm:max-w-[88%] min-w-0 overflow-hidden break-words text-xs sm:text-sm leading-relaxed ${
                 m.role === "user"
                   ? "whitespace-pre-wrap rounded-2xl rounded-tr-xs bg-blue-600 px-4 py-2.5 text-white shadow-sm"
                   : "mentor-md rounded-2xl rounded-tl-xs border border-slate-200/80 bg-slate-50/70 p-4 text-slate-800 shadow-2xs"

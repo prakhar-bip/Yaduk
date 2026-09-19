@@ -310,8 +310,21 @@
   animation: q-shine 2.4s ease-in-out infinite;
 }
 
+.mentor-md {
+  word-break: break-word;
+  overflow-wrap: anywhere;
+  max-width: 100%;
+  min-width: 0;
+}
 .mentor-md > * + * {
   margin-top: 0.55rem;
+}
+.mentor-md p {
+  margin-bottom: 0.5rem;
+  line-height: 1.55;
+}
+.mentor-md p:last-child {
+  margin-bottom: 0;
 }
 .mentor-md h1,
 .mentor-md h2,
@@ -325,7 +338,7 @@
 }
 .mentor-md ul,
 .mentor-md ol {
-  padding-left: 1rem;
+  padding-left: 1.1rem;
   display: grid;
   gap: 0.25rem;
 }
@@ -342,11 +355,12 @@
 .mentor-md code {
   font-family: var(--font-mono);
   font-size: 0.8em;
-  background: var(--sunken);
-  border: 1px solid var(--border);
+  background: var(--sunken, #f1f5f9);
+  border: 1px solid var(--border, #e2e8f0);
   border-radius: 0.35rem;
   padding: 0.05rem 0.3rem;
   color: #2563eb;
+  word-break: break-word;
 }
 .mentor-md pre {
   background: #0f172a;
@@ -354,15 +368,63 @@
   border: 1px solid #1e293b;
   border-radius: 0.75rem;
   padding: 0.75rem;
+  max-width: 100%;
   overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
 }
 .mentor-md pre code {
   background: none;
   border: none;
   padding: 0;
   color: #f8fafc;
+  word-break: normal;
+  white-space: pre;
+}
+.mentor-md table {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  overflow-x: auto;
+  border-collapse: collapse;
+  margin: 0.75rem 0;
+  font-size: 0.75rem;
+  -webkit-overflow-scrolling: touch;
+  border-radius: 0.5rem;
+  border: 1px solid #e2e8f0;
+}
+.mentor-md thead {
+  background-color: #f8fafc;
+}
+.mentor-md th,
+.mentor-md td {
+  border: 1px solid #e2e8f0;
+  padding: 0.35rem 0.55rem;
+  text-align: left;
+  min-width: 4.5rem;
+  vertical-align: top;
+}
+.mentor-md th {
+  font-weight: 700;
+  color: #1e293b;
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+.mentor-md td {
+  color: #334155;
+}
+.mentor-md tr:nth-child(even) td {
+  background-color: #f8fafc;
+}
+.mentor-md blockquote {
+  border-left: 3px solid #3b82f6;
+  padding-left: 0.75rem;
+  margin: 0.5rem 0;
+  color: #475569;
+  font-style: italic;
 }
 .mentor-md a {
   color: #2563eb;
   text-decoration: underline;
+  word-break: break-all;
 }

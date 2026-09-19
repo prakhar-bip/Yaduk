@@ -19,12 +19,12 @@ export function MentorDock({
   onToggle: (open: boolean) => void;
 }) {
   return (
-    <div className="fixed bottom-5 right-5 z-40 flex flex-col items-end gap-3">
+    <div className="fixed bottom-5 right-5 z-40 flex flex-col items-end gap-3 pointer-events-none">
       <div
-        className={`w-[min(92vw,26rem)] origin-bottom-right transition-all duration-300 ease-out ${
+        className={`w-[min(94vw,32rem)] sm:w-[28rem] md:w-[32rem] origin-bottom-right transition-all duration-300 ease-out ${
           open
-            ? "pointer-events-auto scale-100 opacity-100"
-            : "pointer-events-none translate-y-3 scale-95 opacity-0"
+            ? "pointer-events-auto scale-100 opacity-100 visible"
+            : "pointer-events-none translate-y-3 scale-95 opacity-0 invisible h-0 overflow-hidden"
         }`}
       >
         <div className="overflow-hidden rounded-2xl shadow-2xl shadow-blue-500/20 border border-slate-200">
@@ -43,7 +43,7 @@ export function MentorDock({
         type="button"
         onClick={() => onToggle(!open)}
         aria-expanded={open}
-        className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 px-3.5 py-2 text-xs font-bold text-white shadow-lg shadow-blue-500/25 transition-all hover:shadow-xl hover:shadow-blue-500/35 hover:-translate-y-0.5 cursor-pointer"
+        className="pointer-events-auto inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 px-3.5 py-2 text-xs font-bold text-white shadow-lg shadow-blue-500/25 transition-all hover:shadow-xl hover:shadow-blue-500/35 hover:-translate-y-0.5 cursor-pointer [&_svg]:pointer-events-none [&_span]:pointer-events-none"
       >
         <YadukLogo size={20} />
         <span>{open ? "Minimize Chat" : "Ask Yaduk"}</span>

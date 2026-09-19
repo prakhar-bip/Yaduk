@@ -31,30 +31,46 @@ export function QuestScrollPanel({
           type="button"
           onClick={onSummon}
           disabled={busy}
-          className="inline-flex items-center gap-1.5 rounded-full bg-white px-4 py-2 text-xs font-bold text-blue-700 shadow-sm transition-all hover:bg-blue-50 disabled:opacity-50 cursor-pointer"
+          className="inline-flex items-center gap-1.5 rounded-full bg-white px-4 py-2 text-xs font-bold text-blue-700 shadow-sm transition-all hover:bg-blue-50 disabled:opacity-50 cursor-pointer [&_svg]:pointer-events-none [&_span]:pointer-events-none active:scale-98"
         >
-          <Sparkles className="size-3.5 text-blue-600" />
+          <Sparkles className={`size-3.5 text-blue-600 ${busy ? "animate-spin" : ""}`} />
           <span>{busy ? "Synthesizing Summary…" : scroll ? "Regenerate Summary" : "Generate 1-Min Pitch"}</span>
         </button>
       </div>
 
       {!scroll && !busy && (
-        <div className="p-6 text-center">
+        <div className="p-6 sm:p-8 text-center space-y-4">
           <p className="text-xs sm:text-sm text-slate-500 max-w-lg mx-auto leading-relaxed">
             Generate an executive one-minute pitch of your complete project plan: core elevator summary, recommended tooling, immediate next milestones, and highest-risk factors.
           </p>
+          <div>
+            <button
+              type="button"
+              onClick={onSummon}
+              className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 px-5 py-2.5 text-xs sm:text-sm font-bold text-white shadow-md shadow-blue-500/20 hover:shadow-lg hover:shadow-blue-500/30 transition-all hover:-translate-y-0.5 cursor-pointer [&_svg]:pointer-events-none [&_span]:pointer-events-none active:scale-98"
+            >
+              <Sparkles className="size-4" />
+              <span>Generate 1-Min Pitch & Snapshot</span>
+            </button>
+          </div>
         </div>
       )}
 
       {busy && (
-        <div className="space-y-2.5 p-6">
-          {[0, 1, 2].map((i) => (
-            <div
-              key={i}
-              className="q-shine h-3.5 rounded-full bg-slate-100"
-              style={{ width: `${85 - i * 15}%` }}
-            />
-          ))}
+        <div className="space-y-3 p-6 sm:p-8 text-center">
+          <div className="flex items-center justify-center gap-2 text-xs font-semibold text-blue-600">
+            <Sparkles className="size-4 animate-spin" />
+            <span>Synthesizing project executive summary with Yaduk AI…</span>
+          </div>
+          <div className="space-y-2.5 max-w-md mx-auto pt-2">
+            {[0, 1, 2].map((i) => (
+              <div
+                key={i}
+                className="q-shine h-3.5 rounded-full bg-slate-100 mx-auto"
+                style={{ width: `${85 - i * 15}%` }}
+              />
+            ))}
+          </div>
         </div>
       )}
 
