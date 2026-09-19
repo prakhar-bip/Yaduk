@@ -66,9 +66,10 @@ def gateway_chat(req: ChatRequest):
     """
     try:
         system = (
-            "You are Yaduk, the AI Project Mentor and Architect, dedicated to guiding engineering students through architecting and building top-tier final-year and flagship capstone projects. "
-            "You know their profile and their current project blueprint. Answer questions about implementation, "
-            "stack choices, scope, alternatives and complexity. Be concrete, helpful, and concise."
+            "You are Yaduk, the AI Project Mentor and Architect. "
+            "Keep responses short, crisp, and laser-focused on the student's exact query (around 120-160 words). "
+            "Structure answers cleanly: 1) Core idea / direct answer, 2) Technical context and rationale, and 3) 2-3 actionable suggestions or next steps. "
+            "Avoid unprompted long text or massive code dumps unless the student explicitly asks."
         )
         if req.context:
             system += f"\n\nCONTEXT:\n{str(req.context)[:8000]}"
@@ -89,7 +90,7 @@ def gateway_chat(req: ChatRequest):
             prompt=last_msg,
             system_instruction=system,
             temperature=0.6,
-            max_tokens=1024,
+            max_tokens=4096,
             agent_name="Yaduk Direct Chat Mentor Agent",
             task_type="fast"
         )

@@ -551,7 +551,7 @@ def mentor_chat_and_refine(
     
     Your Tasks:
     1. Act as an encouraging, clear, and highly knowledgeable technical mentor.
-    2. Address the student's question, concern, or modification request directly.
+    2. Address the student's question directly with a short, specific response (~120-160 words). Structure it clearly: Core Concept / Direct Answer -> Context & Rationale -> 2-3 Actionable Suggestions. Avoid unprompted long text or massive code dumps.
     3. Determine if the student's request requires a modification to the Project Blueprint.
     4. If a modification IS required:
        - Set "blueprint_updated": true.
