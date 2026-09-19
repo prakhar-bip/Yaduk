@@ -1,6 +1,10 @@
 import { useState, useEffect, useRef } from "react";
 import { useServerFn } from "@tanstack/react-start";
+import Markdown from "react-markdown";
+import remarkGfm from "remark-gfm";
+import rehypeRaw from "rehype-raw";
 import { YadukLogo } from "./YadukLogo";
+import { formatMentorMarkdown } from "./Mentor";
 import {
   Sparkles,
   Palette,
