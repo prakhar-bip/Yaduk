@@ -1,0 +1,26 @@
+<svg viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="yaduk-icon-grad" x1="10%" y1="10%" x2="90%" y2="90%">
+      <stop offset="0%" stopColor="#00d2ff" />
+      <stop offset="45%" stopColor="#0080ff" />
+      <stop offset="90%" stopColor="#4338ca" />
+    </linearGradient>
+    <linearGradient id="yaduk-icon-accent" x1="0%" y1="100%" x2="100%" y2="0%">
+      <stop offset="0%" stopColor="#059669" />
+      <stop offset="100%" stopColor="#34d399" />
+    </linearGradient>
+    <radialGradient id="yaduk-icon-bg" cx="50%" cy="50%" r="55%">
+      <stop offset="0%" stopColor="#0284c7" stopOpacity="0.25" />
+      <stop offset="100%" stopColor="#0f172a" stopOpacity="0.05" />
+    </radialGradient>
+  </defs>
+  <rect width="100" height="100" rx="22" fill="#090d16" />
+  <rect width="100" height="100" rx="22" fill="url(#yaduk-icon-bg)" stroke="#0284c7" stroke-width="2" stroke-opacity="0.5" />
+  <path d="M 26 24 C 32 36, 44 48, 50 56 L 50 82" stroke="url(#yaduk-icon-grad)" stroke-width="11" stroke-linecap="round" stroke-linejoin="round" />
+  <path d="M 74 24 C 68 36, 56 48, 50 56" stroke="url(#yaduk-icon-grad)" stroke-width="11" stroke-linecap="round" stroke-linejoin="round" />
+  <path d="M 50 48 L 50 78" stroke="url(#yaduk-icon-accent)" stroke-width="4" stroke-linecap="round" />
+  <circle cx="50" cy="52" r="5" fill="#38bdf8" />
+  <circle cx="50" cy="52" r="2.5" fill="#ffffff" />
+  <circle cx="26" cy="24" r="3.5" fill="#00d2ff" />
+  <circle cx="74" cy="24" r="3.5" fill="#38bdf8" />
+</svg>

@@ -1,0 +1,57 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100" height="100">
+  <defs>
+    <!-- Morpankhi Blue Gradient -->
+    <linearGradient id="morpankhi-s-grad" x1="15%" y1="10%" x2="85%" y2="90%">
+      <stop offset="0%" stop-color="#00b4d8" />
+      <stop offset="35%" stop-color="#0077b6" />
+      <stop offset="70%" stop-color="#023e8a" />
+      <stop offset="100%" stop-color="#0096c7" />
+    </linearGradient>
+
+    <!-- Morpankhi Teal & Iridescent Shimmer -->
+    <linearGradient id="morpankhi-teal" x1="0%" y1="100%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#00a896" />
+      <stop offset="50%" stop-color="#00b4d8" />
+      <stop offset="100%" stop-color="#90e0ef" />
+    </linearGradient>
+
+    <radialGradient id="morpankhi-tile" cx="50%" cy="50%" r="55%">
+      <stop offset="0%" stop-color="#00b4d8" stop-opacity="0.16" />
+      <stop offset="70%" stop-color="#023e8a" stop-opacity="0.07" />
+      <stop offset="100%" stop-color="#03045e" stop-opacity="0.02" />
+    </radialGradient>
+  </defs>
+
+  <rect width="100" height="100" rx="24" fill="url(#morpankhi-tile)" stroke="#00b4d8" stroke-width="1.5" stroke-opacity="0.35" />
+
+  <g>
+    <!-- Main Bold "S" Contour in Morpankhi Blue -->
+    <path
+      d="M 72 26 C 52 16, 28 21, 26 38 C 24 53, 50 51, 62 57 C 76 64, 76 81, 60 87 C 42 93, 26 87, 24 77"
+      stroke="url(#morpankhi-s-grad)"
+      stroke-width="12"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+      fill="none"
+    />
+
+    <!-- Inner Iridescent Feather Shimmer Line -->
+    <path
+      d="M 68 26 C 50 18, 32 23, 30 36 C 28 48, 50 46, 62 53 C 72 60, 72 75, 60 82 C 46 87, 32 83, 28 77"
+      stroke="url(#morpankhi-teal)"
+      stroke-width="3.5"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+      fill="none"
+      opacity="0.95"
+    />
+
+    <!-- Morpankhi Peacock Eye (Chandrika) at heart of S -->
+    <circle cx="50" cy="50" r="6.5" fill="#00b4d8" />
+    <circle cx="50" cy="50" r="4" fill="#03045e" />
+    <circle cx="51.5" cy="48.5" r="1.5" fill="#ffffff" />
+
+    <circle cx="72" cy="26" r="3" fill="#90e0ef" />
+    <circle cx="24" cy="77" r="2.5" fill="#00a896" />
+  </g>
+</svg>
