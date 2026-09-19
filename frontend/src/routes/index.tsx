@@ -31,8 +31,6 @@ import {
   summarizeBlueprint,
   updateBlueprint,
 } from "@/lib/quest.functions";
-import { StepQuickNavigator } from "@/components/quest/StepQuickNavigator";
-import { getHydratedStateForStage } from "@/lib/mock-quest-data";
 import type { ProjectIdea, StudentProfile, Stage } from "@/lib/types";
 
 export const Route = createFileRoute("/")({
@@ -613,27 +611,13 @@ function Home() {
     update({ stage: targetStage });
   };
 
-  const handleFastNavigate = (targetStage: Stage) => {
-    setBusy(null);
-    if (targetStage === "intro") {
-      update({ stage: "intro" });
-      return;
-    }
-    const hydratedUpdates = getHydratedStateForStage(targetStage, state);
-    update(hydratedUpdates);
-    toast.success(`Quick jump to Step: ${targetStage.toUpperCase()}`);
-  };
-
   if (!hydrated) return null;
 
-  // Render quest pipeline if authenticated OR if user fast-navigated to a quest stage
+  // Render quest pipeline if authenticated OR if user is on a quest stage
   const showQuest = (isAuthenticated || state.stage !== "intro") && state.stage !== "intro";
 
   return (
     <div className="min-h-screen">
-      {/* Temporary 1-Click Fast Step Navigator */}
-      <StepQuickNavigator currentStage={state.stage} onNavigate={handleFastNavigate} />
-
       {!showQuest && <LandingNavbar onOpenAuth={openAuth} onLogout={handleLogout} />}
 
       {showQuest && (
@@ -641,7 +625,7 @@ function Home() {
           stage={state.stage}
           badges={state.badges}
           onReset={handleLogout}
-          onSelectStage={handleFastNavigate}
+          onSelectStage={handleStageSelect}
         />
       )}
 
