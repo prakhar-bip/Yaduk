@@ -116,20 +116,26 @@ def call_llm(
     system_instruction: str = None,
     temperature: float = 0.4,
     max_tokens: int = 4096,
-    agent_name: str = "Yaduk AI Agent"
+    agent_name: str = "Yaduk AI Agent",
+    task_type: str = "fast"
 ):
     """
-    3-Tier Agentic Router Waterfall:
-    1. AWS Bedrock (Claude 3.5 Sonnet / Llama 3.3 70B on Bedrock)
-    2. NVIDIA NIM (nvidia/nemotron-3-ultra-550b-a55b with reasoning enabled)
-    3. Groq (openai/gpt-oss-120b high-throughput reasoning engine)
+    Task-Aware Intelligent AI Router Waterfall:
+    - task_type="fast": Prioritizes low latency and instant turnaround.
+        Cascade: AWS Bedrock -> Groq (openai/gpt-oss-120b) -> NVIDIA NIM (nemotron-3-ultra-550b-a55b)
+    - task_type="deep": Prioritizes maximum parameter scale and architectural reasoning.
+        Cascade: AWS Bedrock -> NVIDIA NIM (nemotron-3-ultra-550b-a55b) -> Groq (openai/gpt-oss-120b)
     """
-    # 1. Attempt AWS Bedrock if configured
+    is_deep = (task_type or "").lower() == "deep"
+    task_tag = "[DEEP]" if is_deep else "[FAST]"
+    tagged_agent = f"{task_tag} {agent_name}"
+
+    # 1. Primary Cloud Tier: AWS Bedrock (if credentials configured)
     if settings.AWS_BEDROCK_ENABLED and (settings.AWS_ACCESS_KEY_ID or os.getenv("AWS_ACCESS_KEY_ID") or os.getenv("AWS_PROFILE")):
         try:
             res = call_bedrock(prompt, system_instruction, temperature, max_tokens)
             log_activity(
-                agent=f"{agent_name} (AWS Bedrock: {settings.AWS_BEDROCK_MODEL})",
+                agent=f"{tagged_agent} (AWS Bedrock: {settings.AWS_BEDROCK_MODEL})",
                 success=True,
                 error=None,
                 warning_reason=None
@@ -137,20 +143,84 @@ def call_llm(
             return res
         except Exception as e_bedrock:
             bedrock_err = str(e_bedrock)
+            next_tier = "NVIDIA NIM" if is_deep else "Groq"
             log_activity(
-                agent=f"{agent_name} (AWS Bedrock)",
+                agent=f"{tagged_agent} (AWS Bedrock)",
                 success=False,
                 error=f"{type(e_bedrock).__name__}: {bedrock_err}",
-                warning_reason=f"Bedrock invocation failed, cascading to NVIDIA NIM: {bedrock_err}"
+                warning_reason=f"Bedrock invocation failed, routing to {next_tier}: {bedrock_err}"
             )
 
-    # 2. Attempt NVIDIA NIM (nvidia/nemotron-3-ultra-550b-a55b with reasoning)
-    nvidia_key = settings.NVIDIA_API_KEY or os.getenv("NVIDIA_API_KEY", "")
-    if nvidia_key:
+    # 2. Dynamic Fallback Routing based on Task Priority
+    if is_deep:
+        # DEEP ROUTE: NVIDIA NIM (550B Parameter Reasoning Engine) -> Groq (120B)
+        nvidia_key = settings.NVIDIA_API_KEY or os.getenv("NVIDIA_API_KEY", "")
+        if nvidia_key:
+            try:
+                res = call_nvidia(prompt, system_instruction, temperature=temperature or 1.0, max_tokens=max_tokens)
+                log_activity(
+                    agent=f"{tagged_agent} (NVIDIA NIM: {settings.NVIDIA_MODEL})",
+                    success=True,
+                    error=None,
+                    warning_reason=None
+                )
+                return res
+            except Exception as e_nvidia:
+                nvidia_err = str(e_nvidia)
+                log_activity(
+                    agent=f"{tagged_agent} (NVIDIA NIM)",
+                    success=False,
+                    error=f"{type(e_nvidia).__name__}: {nvidia_err}",
+                    warning_reason=f"NVIDIA NIM failed, falling back to Groq: {nvidia_err}"
+                )
+
+        # Tertiary Fallback for Deep Route: Groq
         try:
-            res = call_nvidia(prompt, system_instruction, temperature=1.0, max_tokens=max_tokens)
+            res = call_groq(prompt, system_instruction, temperature, max_tokens)
             log_activity(
-                agent=f"{agent_name} (NVIDIA NIM: {settings.NVIDIA_MODEL})",
+                agent=f"{tagged_agent} (Groq: {settings.GROQ_MODEL})",
+                success=True,
+                error=None,
+                warning_reason=None
+            )
+            return res
+        except Exception as e_groq:
+            groq_err = str(e_groq)
+            log_activity(
+                agent=f"{tagged_agent} (Groq)",
+                success=False,
+                error=f"{type(e_groq).__name__}: {groq_err}",
+                warning_reason=f"Reason: Groq fallback generation failed ({groq_err})"
+            )
+            raise RuntimeError(f"All AI agent tiers (Bedrock -> NVIDIA NIM -> Groq) failed for {agent_name}: {groq_err}")
+
+    else:
+        # FAST ROUTE: Groq (120B High-Throughput Engine) -> NVIDIA NIM (550B)
+        groq_key = settings.GROQ_API_KEY or os.getenv("GROQ_API_KEY", "")
+        if groq_key:
+            try:
+                res = call_groq(prompt, system_instruction, temperature, max_tokens)
+                log_activity(
+                    agent=f"{tagged_agent} (Groq: {settings.GROQ_MODEL})",
+                    success=True,
+                    error=None,
+                    warning_reason=None
+                )
+                return res
+            except Exception as e_groq:
+                groq_err = str(e_groq)
+                log_activity(
+                    agent=f"{tagged_agent} (Groq)",
+                    success=False,
+                    error=f"{type(e_groq).__name__}: {groq_err}",
+                    warning_reason=f"Groq failed, falling back to NVIDIA NIM: {groq_err}"
+                )
+
+        # Tertiary Fallback for Fast Route: NVIDIA NIM
+        try:
+            res = call_nvidia(prompt, system_instruction, temperature=temperature or 1.0, max_tokens=max_tokens)
+            log_activity(
+                agent=f"{tagged_agent} (NVIDIA NIM: {settings.NVIDIA_MODEL})",
                 success=True,
                 error=None,
                 warning_reason=None
@@ -159,31 +229,12 @@ def call_llm(
         except Exception as e_nvidia:
             nvidia_err = str(e_nvidia)
             log_activity(
-                agent=f"{agent_name} (NVIDIA NIM)",
+                agent=f"{tagged_agent} (NVIDIA NIM)",
                 success=False,
                 error=f"{type(e_nvidia).__name__}: {nvidia_err}",
-                warning_reason=f"NVIDIA NIM invocation failed, cascading to Groq: {nvidia_err}"
+                warning_reason=f"Reason: NVIDIA NIM fallback generation failed ({nvidia_err})"
             )
-
-    # 3. Tertiary Fallback: Groq (openai/gpt-oss-120b)
-    try:
-        res = call_groq(prompt, system_instruction, temperature, max_tokens)
-        log_activity(
-            agent=f"{agent_name} (Groq: {settings.GROQ_MODEL})",
-            success=True,
-            error=None,
-            warning_reason=None
-        )
-        return res
-    except Exception as e_groq:
-        groq_err = str(e_groq)
-        log_activity(
-            agent=f"{agent_name} (Groq)",
-            success=False,
-            error=f"{type(e_groq).__name__}: {groq_err}",
-            warning_reason=f"Reason: Groq generation failed ({groq_err})"
-        )
-        raise RuntimeError(f"All 3 AI agent tiers (Bedrock -> NVIDIA NIM -> Groq) failed: {groq_err}")
+            raise RuntimeError(f"All AI agent tiers (Bedrock -> Groq -> NVIDIA NIM) failed for {agent_name}: {nvidia_err}")
 
 
 def _repair_and_parse_json(text: str):
@@ -271,11 +322,11 @@ def _extract_json(content: str, agent_name: str = "JSON Parser"):
         )
         raise
 
-def generate_raw_json(system: str, prompt: str, agent_name: str = "Yaduk JSON Gateway Agent"):
+def generate_raw_json(system: str, prompt: str, agent_name: str = "Yaduk JSON Gateway Agent", task_type: str = "fast"):
     """
     Gateway function for generating typed JSON from system and user prompts.
     """
-    content = call_llm(prompt=prompt, system_instruction=system, temperature=0.4, max_tokens=8192, agent_name=agent_name)
+    content = call_llm(prompt=prompt, system_instruction=system, temperature=0.4, max_tokens=8192, agent_name=agent_name, task_type=task_type)
     return _extract_json(content, agent_name=agent_name)
 
 def generate_project_ideas(student_profile: dict, model_name: str = None):
@@ -293,7 +344,7 @@ def generate_project_ideas(student_profile: dict, model_name: str = None):
     name, problem, solution, target_users, difficulty_level, estimated_development_time, required_skills (list of strings).
     Do not include markdown blocks or any other text, just the raw JSON array.
     """
-    content = call_llm(prompt, temperature=0.7, max_tokens=4096, agent_name="Project Idea Advisor Agent")
+    content = call_llm(prompt, temperature=0.7, max_tokens=4096, agent_name="Project Idea Advisor Agent", task_type="fast")
     return _extract_json(content, agent_name="Project Idea Advisor Agent")
 
 def refine_project_ideas(student_profile: dict, current_ideas: list, feedback: str, model_name: str = None):
@@ -317,7 +368,7 @@ def refine_project_ideas(student_profile: dict, current_ideas: list, feedback: s
     name, problem, solution, target_users, difficulty_level, estimated_development_time, required_skills (list of strings).
     Do not include markdown blocks or any other text, just the raw JSON array.
     """
-    content = call_llm(prompt, temperature=0.7, max_tokens=4096, agent_name="Project Idea Refiner Agent")
+    content = call_llm(prompt, temperature=0.7, max_tokens=4096, agent_name="Project Idea Refiner Agent", task_type="fast")
     return _extract_json(content, agent_name="Project Idea Refiner Agent")
 
 def analyze_project_feasibility(student_profile: dict, project_idea: dict, model_name: str = None):
@@ -342,7 +393,7 @@ def analyze_project_feasibility(student_profile: dict, project_idea: dict, model
     skill_match_score (integer), interest_match_score (integer), feasibility_explanation (string).
     Do not include markdown blocks or any other text, just the raw JSON object.
     """
-    content = call_llm(prompt, temperature=0.4, max_tokens=4096, agent_name="Project Feasibility Analyst Agent")
+    content = call_llm(prompt, temperature=0.4, max_tokens=4096, agent_name="Project Feasibility Analyst Agent", task_type="deep")
     return _extract_json(content, agent_name="Project Feasibility Analyst Agent")
 
 def generate_project_blueprint(student_profile: dict, project_idea: dict, model_name: str = None):
@@ -461,7 +512,7 @@ def generate_project_blueprint(student_profile: dict, project_idea: dict, model_
     1. Tailor the tech stack and roadmap to the student's existing skills, filling gaps realistically.
     2. Return ONLY the valid JSON object. No Markdown code fences, no extra text.
     """
-    content = call_llm(prompt, temperature=0.4, max_tokens=8192, agent_name="AI Project Architect Agent")
+    content = call_llm(prompt, temperature=0.4, max_tokens=8192, agent_name="AI Project Architect Agent", task_type="deep")
     return _extract_json(content, agent_name="AI Project Architect Agent")
 
 def mentor_chat_and_refine(
@@ -516,5 +567,5 @@ def mentor_chat_and_refine(
     Rules:
     - Respond ONLY with the raw JSON object. No Markdown fences, no extra text.
     """
-    content = call_llm(prompt, temperature=0.5, max_tokens=4096, agent_name="AI Project Mentor Agent")
+    content = call_llm(prompt, temperature=0.5, max_tokens=4096, agent_name="AI Project Mentor Agent", task_type="fast")
     return _extract_json(content, agent_name="AI Project Mentor Agent")

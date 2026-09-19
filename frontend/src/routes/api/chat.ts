@@ -37,20 +37,21 @@ export const Route = createFileRoute("/api/chat")({
             return new Response("Messages are required", { status: 400 });
           }
 
-          const nvidiaKey = process.env["NVIDIA_API_KEY"] || "";
           const groqKey = process.env["GROQ_API_KEY"] || "";
+          const nvidiaKey = process.env["NVIDIA_API_KEY"] || "";
 
-          const useNvidia = Boolean(nvidiaKey);
-          const baseURL = useNvidia
-            ? (process.env["NVIDIA_BASE_URL"] || "https://integrate.api.nvidia.com/v1")
-            : (process.env["GROQ_BASE_URL"] || "https://api.groq.com/openai/v1");
+          // Fast path: Groq LPU provides sub-second TTFT token streaming for chat mentorship
+          const useGroq = Boolean(groqKey);
+          const baseURL = useGroq
+            ? (process.env["GROQ_BASE_URL"] || "https://api.groq.com/openai/v1")
+            : (process.env["NVIDIA_BASE_URL"] || "https://integrate.api.nvidia.com/v1");
 
-          const apiKey = useNvidia ? nvidiaKey : groqKey;
-          const modelName = useNvidia
-            ? (process.env["NVIDIA_MODEL"] || "nvidia/nemotron-3-ultra-550b-a55b")
-            : (process.env["GROQ_MODEL"] || "openai/gpt-oss-120b");
+          const apiKey = useGroq ? groqKey : nvidiaKey;
+          const modelName = useGroq
+            ? (process.env["GROQ_MODEL"] || "openai/gpt-oss-120b")
+            : (process.env["NVIDIA_MODEL"] || "nvidia/nemotron-3-ultra-550b-a55b");
 
-          const providerName = useNvidia ? "nvidia" : "groq";
+          const providerName = useGroq ? "groq" : "nvidia";
 
           const provider = createOpenAICompatible({
             name: providerName,

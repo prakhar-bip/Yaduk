@@ -41,6 +41,11 @@ class Settings(BaseSettings):
     OPENROUTER_MODEL: str = os.getenv("OPENROUTER_MODEL", NVIDIA_MODEL)
     OPENROUTER_TIMEOUT: float = NVIDIA_TIMEOUT
 
+    # Task-Aware Router Optimization Configuration
+    ROUTER_MODE: bool = os.getenv("ROUTER_MODE", "true").lower() in ("true", "1")
+    FAST_TASK_TIMEOUT: float = float(os.getenv("FAST_TASK_TIMEOUT", "25.0"))
+    DEEP_TASK_TIMEOUT: float = float(os.getenv("DEEP_TASK_TIMEOUT", "60.0"))
+
     # JWT Authentication settings
     JWT_SECRET_KEY: str = os.getenv("JWT_SECRET_KEY", "yaduk-super-secret-key-core-auth-jwt")
     JWT_ALGORITHM: str = "HS256"

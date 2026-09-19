@@ -52,7 +52,8 @@ def gateway_generate_text(req: GenerateTextRequest):
             system_instruction=req.system,
             temperature=req.temperature or 0.3,
             max_tokens=req.max_tokens or 8192,
-            agent_name=req.agent_name or "Yaduk Code Architect Agent"
+            agent_name=req.agent_name or "Yaduk Code Architect Agent",
+            task_type="deep"
         )
         return {"text": text}
     except Exception as e:
@@ -61,7 +62,7 @@ def gateway_generate_text(req: GenerateTextRequest):
 @router.post("/chat")
 def gateway_chat(req: ChatRequest):
     """
-    Direct mentor chat response using AWS Bedrock with Groq fallback.
+    Direct mentor chat response using task-aware router with Groq fallback.
     """
     try:
         system = (
@@ -84,7 +85,14 @@ def gateway_chat(req: ChatRequest):
         if not last_msg:
             last_msg = "Hello mentor, can you help me with my project?"
             
-        text = call_llm(prompt=last_msg, system_instruction=system, temperature=0.6, max_tokens=1024, agent_name="Yaduk Direct Chat Mentor Agent")
+        text = call_llm(
+            prompt=last_msg,
+            system_instruction=system,
+            temperature=0.6,
+            max_tokens=1024,
+            agent_name="Yaduk Direct Chat Mentor Agent",
+            task_type="fast"
+        )
         return {"text": text}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Mentor chat failed: {str(e)}")
