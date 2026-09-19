@@ -23,15 +23,20 @@ class Settings(BaseSettings):
     AWS_SECRET_ACCESS_KEY: str = os.getenv("AWS_SECRET_ACCESS_KEY", "")
     AWS_BEDROCK_MODEL: str = os.getenv("AWS_BEDROCK_MODEL", "anthropic.claude-3-5-sonnet-20241022-v2:0")
 
-    # Groq Fallback AI Settings (High-Throughput Reasoning Engine)
+    # OpenRouter Fallback AI Settings (Secondary Tier: Reasoning & Nemotron Ultra)
+    OPENROUTER_API_KEY: str = os.getenv("OPENROUTER_API_KEY", "")
+    OPENROUTER_BASE_URL: str = os.getenv("OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1")
+    OPENROUTER_MODEL: str = os.getenv("OPENROUTER_MODEL", "nvidia/nemotron-3-ultra-550b-a55b:free")
+
+    # Groq Fallback AI Settings (Tertiary Tier: High-Throughput Reasoning Engine)
     GROQ_API_KEY: str = os.getenv("GROQ_API_KEY", "")
     GROQ_BASE_URL: str = os.getenv("GROQ_BASE_URL", "https://api.groq.com/openai/v1")
     GROQ_MODEL: str = os.getenv("GROQ_MODEL", "openai/gpt-oss-120b")
 
     # Backward-compatible aliases for client interfaces
-    NVIDIA_API_KEY: str = os.getenv("NVIDIA_API_KEY", GROQ_API_KEY)
-    NVIDIA_BASE_URL: str = os.getenv("NVIDIA_BASE_URL", GROQ_BASE_URL)
-    NVIDIA_MODEL: str = os.getenv("NVIDIA_MODEL", GROQ_MODEL)
+    NVIDIA_API_KEY: str = os.getenv("NVIDIA_API_KEY", OPENROUTER_API_KEY or GROQ_API_KEY)
+    NVIDIA_BASE_URL: str = os.getenv("NVIDIA_BASE_URL", OPENROUTER_BASE_URL)
+    NVIDIA_MODEL: str = os.getenv("NVIDIA_MODEL", OPENROUTER_MODEL)
 
     # JWT Authentication settings
     JWT_SECRET_KEY: str = os.getenv("JWT_SECRET_KEY", "yaduk-super-secret-key-core-auth-jwt")

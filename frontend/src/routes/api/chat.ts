@@ -37,26 +37,27 @@ export const Route = createFileRoute("/api/chat")({
             return new Response("Messages are required", { status: 400 });
           }
 
-          const groqKey =
-            process.env["GROQ_API_KEY"] ||
-            process.env["NVIDIA_API_KEY"] ||
-            "";
+          const openrouterKey = process.env["OPENROUTER_API_KEY"] || "";
+          const groqKey = process.env["GROQ_API_KEY"] || process.env["NVIDIA_API_KEY"] || "";
 
-          const baseURL =
-            process.env["GROQ_BASE_URL"] ||
-            process.env["NVIDIA_BASE_URL"] ||
-            "https://api.groq.com/openai/v1";
+          const useOpenRouter = Boolean(openrouterKey);
+          const baseURL = useOpenRouter
+            ? (process.env["OPENROUTER_BASE_URL"] || "https://openrouter.ai/api/v1")
+            : (process.env["GROQ_BASE_URL"] || "https://api.groq.com/openai/v1");
 
-          const modelName =
-            process.env["GROQ_MODEL"] ||
-            process.env["NVIDIA_MODEL"] ||
-            "openai/gpt-oss-120b";
+          const apiKey = useOpenRouter ? openrouterKey : groqKey;
+          const modelName = useOpenRouter
+            ? (process.env["OPENROUTER_MODEL"] || "nvidia/nemotron-3-ultra-550b-a55b:free")
+            : (process.env["GROQ_MODEL"] || "openai/gpt-oss-120b");
+
+          const providerName = useOpenRouter ? "openrouter" : "groq";
 
           const provider = createOpenAICompatible({
-            name: "groq",
+            name: providerName,
             baseURL,
             headers: {
-              Authorization: `Bearer ${groqKey}`,
+              Authorization: `Bearer ${apiKey}`,
+              ...(useOpenRouter ? { "HTTP-Referer": "https://yaduk.ai", "X-Title": "Yaduk AI" } : {}),
             },
           });
 
@@ -74,7 +75,7 @@ ${JSON.stringify(context ?? {}).slice(0, 12000)}`,
           });
 
           logTerminalActivity(
-            `Yaduk Chat Mentor Agent (Groq: ${modelName})`,
+            `Yaduk Chat Mentor Agent (${providerName.toUpperCase()}: ${modelName})`,
             true,
             null,
             null,
@@ -84,11 +85,11 @@ ${JSON.stringify(context ?? {}).slice(0, 12000)}`,
         } catch (err: unknown) {
           const errMsg = err instanceof Error ? err.message : String(err);
           const modelName =
+            process.env["OPENROUTER_MODEL"] ||
             process.env["GROQ_MODEL"] ||
-            process.env["NVIDIA_MODEL"] ||
-            "openai/gpt-oss-120b";
+            "default";
           logTerminalActivity(
-            `Yaduk Chat Mentor Agent (Groq: ${modelName})`,
+            `Yaduk Chat Mentor Agent (Error: ${modelName})`,
             false,
             errMsg,
             `Reason: ${errMsg}`,

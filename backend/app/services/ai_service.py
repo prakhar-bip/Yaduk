@@ -1,22 +1,12 @@
+import os
 import json
 import time
 import subprocess
 import requests
-from openai import OpenAI
-from app.core.config import settings
-from app.core.activity_logger import log_activity
-
-import os
 import boto3
 from openai import OpenAI
 from app.core.config import settings
 from app.core.activity_logger import log_activity
-
-# Groq Client (Fallback / High-Throughput Reasoning Engine)
-groq_client = OpenAI(
-    api_key=settings.GROQ_API_KEY,
-    base_url=settings.GROQ_BASE_URL
-)
 
 def get_bedrock_client():
     if not settings.AWS_BEDROCK_ENABLED:
@@ -49,12 +39,61 @@ def call_bedrock(prompt: str, system_instruction: str = None, temperature: float
     )
     return response["output"]["message"]["content"][0]["text"]
 
-def call_groq(prompt: str, system_instruction: str = None, temperature: float = 0.4, max_tokens: int = 4096):
+def get_openrouter_client():
+    api_key = settings.OPENROUTER_API_KEY or os.getenv("OPENROUTER_API_KEY", "")
+    if not api_key:
+        return None
+    return OpenAI(
+        api_key=api_key,
+        base_url=settings.OPENROUTER_BASE_URL,
+        default_headers={
+            "HTTP-Referer": "https://yaduk.ai",
+            "X-Title": "Yaduk AI",
+        }
+    )
+
+def call_openrouter(prompt: str, system_instruction: str = None, temperature: float = 0.4, max_tokens: int = 4096):
+    client = get_openrouter_client()
+    if not client:
+        raise ValueError("OpenRouter API key is not configured.")
+    
     messages = []
     if system_instruction:
         messages.append({"role": "system", "content": system_instruction})
     messages.append({"role": "user", "content": prompt})
-    response = groq_client.chat.completions.create(
+    
+    extra_body = {}
+    model_lower = settings.OPENROUTER_MODEL.lower()
+    if "nemotron" in model_lower or "deepseek" in model_lower or "gpt-oss" in model_lower:
+        extra_body["reasoning"] = {"enabled": True}
+
+    response = client.chat.completions.create(
+        model=settings.OPENROUTER_MODEL,
+        messages=messages,
+        temperature=temperature,
+        max_tokens=max_tokens,
+        extra_body=extra_body if extra_body else None
+    )
+    return response.choices[0].message.content
+
+def get_groq_client():
+    api_key = settings.GROQ_API_KEY or os.getenv("GROQ_API_KEY", "")
+    if not api_key:
+        return None
+    return OpenAI(
+        api_key=api_key,
+        base_url=settings.GROQ_BASE_URL
+    )
+
+def call_groq(prompt: str, system_instruction: str = None, temperature: float = 0.4, max_tokens: int = 4096):
+    client = get_groq_client()
+    if not client:
+        raise ValueError("Groq API key is not configured.")
+    messages = []
+    if system_instruction:
+        messages.append({"role": "system", "content": system_instruction})
+    messages.append({"role": "user", "content": prompt})
+    response = client.chat.completions.create(
         model=settings.GROQ_MODEL,
         messages=messages,
         temperature=temperature,
@@ -70,9 +109,10 @@ def call_llm(
     agent_name: str = "Yaduk AI Agent"
 ):
     """
-    Production Agentic Router (Track 2: AWS Bedrock + Groq High-Throughput Fallback):
-    1. Attempts AWS Bedrock (Claude 3.5 Sonnet / Llama 3.3 70B on Bedrock) if configured.
-    2. Seamlessly falls back to Groq (openai/gpt-oss-120b) if Bedrock is not configured or fails.
+    3-Tier Agentic Router Waterfall:
+    1. AWS Bedrock (Claude 3.5 Sonnet / Llama 3.3 70B on Bedrock)
+    2. OpenRouter (nvidia/nemotron-3-ultra-550b-a55b:free with reasoning enabled)
+    3. Groq (openai/gpt-oss-120b high-throughput reasoning engine)
     """
     # 1. Attempt AWS Bedrock if configured
     if settings.AWS_BEDROCK_ENABLED and (settings.AWS_ACCESS_KEY_ID or os.getenv("AWS_ACCESS_KEY_ID") or os.getenv("AWS_PROFILE")):
@@ -91,10 +131,31 @@ def call_llm(
                 agent=f"{agent_name} (AWS Bedrock)",
                 success=False,
                 error=f"{type(e_bedrock).__name__}: {bedrock_err}",
-                warning_reason=f"Bedrock invocation failed, falling back to Groq: {bedrock_err}"
+                warning_reason=f"Bedrock invocation failed, cascading to OpenRouter: {bedrock_err}"
             )
 
-    # 2. Fallback to Groq (openai/gpt-oss-120b)
+    # 2. Attempt OpenRouter (nvidia/nemotron-3-ultra-550b-a55b:free with reasoning)
+    openrouter_key = settings.OPENROUTER_API_KEY or os.getenv("OPENROUTER_API_KEY", "")
+    if openrouter_key:
+        try:
+            res = call_openrouter(prompt, system_instruction, temperature, max_tokens)
+            log_activity(
+                agent=f"{agent_name} (OpenRouter: {settings.OPENROUTER_MODEL})",
+                success=True,
+                error=None,
+                warning_reason=None
+            )
+            return res
+        except Exception as e_openrouter:
+            openrouter_err = str(e_openrouter)
+            log_activity(
+                agent=f"{agent_name} (OpenRouter)",
+                success=False,
+                error=f"{type(e_openrouter).__name__}: {openrouter_err}",
+                warning_reason=f"OpenRouter invocation failed, cascading to Groq: {openrouter_err}"
+            )
+
+    # 3. Tertiary Fallback: Groq (openai/gpt-oss-120b)
     try:
         res = call_groq(prompt, system_instruction, temperature, max_tokens)
         log_activity(
@@ -112,7 +173,7 @@ def call_llm(
             error=f"{type(e_groq).__name__}: {groq_err}",
             warning_reason=f"Reason: Groq generation failed ({groq_err})"
         )
-        raise RuntimeError(f"AI generation failed across Bedrock and Groq: {groq_err}")
+        raise RuntimeError(f"All 3 AI agent tiers (Bedrock -> OpenRouter -> Groq) failed: {groq_err}")
 
 
 def _repair_and_parse_json(text: str):
