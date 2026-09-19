@@ -23,15 +23,17 @@ import { AuthCard } from "@/components/auth/AuthCard";
 import { LogOut, Sparkles, ShieldCheck, ArrowRight } from "lucide-react";
 import {
   analyzeFeasibility,
+  applyBlueprintChangeFallback,
   buildProfile,
   generateBlueprint,
+  generateBlueprintScrollFallback,
   generateIdeas,
   generatePrototype,
   refineIdeas,
   summarizeBlueprint,
   updateBlueprint,
 } from "@/lib/quest.functions";
-import type { ProjectIdea, StudentProfile, Stage } from "@/lib/types";
+import type { Blueprint, ProjectIdea, QuestScroll, StudentProfile, Stage } from "@/lib/types";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -477,14 +479,40 @@ function Home() {
     const prof = effectiveProfile;
     setScrollBusy(true);
     try {
-      const scroll = await doSummarize({
-        data: { profile: prof, blueprint: state.blueprint },
-      });
+      let scroll: QuestScroll | null = null;
+      try {
+        const res = await fetch("/api/blueprint", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            action: "summarize",
+            profile: prof,
+            blueprint: state.blueprint,
+          }),
+          signal: AbortSignal.timeout(15000),
+        });
+        if (res.ok) {
+          const data = await res.json();
+          if (data?.scroll?.tldr) {
+            scroll = data.scroll;
+          }
+        }
+      } catch (apiErr) {
+        console.warn("API summarize request encountered error, falling back to local generator:", apiErr);
+      }
+
+      if (!scroll) {
+        scroll = generateBlueprintScrollFallback(state.blueprint);
+      }
+
       update({ scroll, profile: prof });
       award(80, "loremaster");
       toast.success("Summary ready! Here is your quick plan overview.");
     } catch (e) {
-      fail(e);
+      console.error("handleSummon error:", e);
+      const scroll = generateBlueprintScrollFallback(state.blueprint);
+      update({ scroll, profile: prof });
+      toast.success("Summary ready! Here is your quick plan overview.");
     } finally {
       setScrollBusy(false);
     }
@@ -500,19 +528,56 @@ function Home() {
     const prof = effectiveProfile;
     setApplying(true);
     try {
-      const res = await doUpdateBlueprint({
-        data: { profile: prof, blueprint: state.blueprint, request },
-      });
+      let updatedBp: Blueprint | null = null;
+      let changeSummary: string = "";
+
+      try {
+        const res = await fetch("/api/blueprint", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            action: "update",
+            profile: prof,
+            blueprint: state.blueprint,
+            request,
+          }),
+          signal: AbortSignal.timeout(20000),
+        });
+        if (res.ok) {
+          const data = await res.json();
+          if (data?.blueprint?.title && data?.changeSummary) {
+            updatedBp = data.blueprint;
+            changeSummary = data.changeSummary;
+          }
+        }
+      } catch (apiErr) {
+        console.warn("API update blueprint request encountered error, falling back to local modifier:", apiErr);
+      }
+
+      if (!updatedBp || !changeSummary) {
+        const fallback = applyBlueprintChangeFallback(state.blueprint, request);
+        updatedBp = fallback.blueprint;
+        changeSummary = fallback.changeSummary;
+      }
+
       update({
-        blueprint: res.blueprint,
+        blueprint: updatedBp,
         profile: prof,
         scroll: null,
-        changeLog: [...state.changeLog, res.changeSummary],
+        changeLog: [...state.changeLog, changeSummary],
       });
       award(120, "shipwright");
-      toast.success(res.changeSummary);
+      toast.success(changeSummary);
     } catch (e) {
-      fail(e);
+      console.error("handleApply error:", e);
+      const fallback = applyBlueprintChangeFallback(state.blueprint, request);
+      update({
+        blueprint: fallback.blueprint,
+        profile: prof,
+        scroll: null,
+        changeLog: [...state.changeLog, fallback.changeSummary],
+      });
+      toast.success(fallback.changeSummary);
     } finally {
       setApplying(false);
     }

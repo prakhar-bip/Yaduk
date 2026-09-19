@@ -10,12 +10,18 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as ApiBlueprintRouteImport } from './routes/api/blueprint'
 import { Route as ApiChatRouteImport } from './routes/api/chat'
 import { Route as ApiHealthRouteImport } from './routes/api/health'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiBlueprintRoute = ApiBlueprintRouteImport.update({
+  id: '/api/blueprint',
+  path: '/api/blueprint',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiChatRoute = ApiChatRouteImport.update({
@@ -31,30 +37,34 @@ const ApiHealthRoute = ApiHealthRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/api/blueprint': typeof ApiBlueprintRoute
   '/api/chat': typeof ApiChatRoute
   '/api/health': typeof ApiHealthRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/api/blueprint': typeof ApiBlueprintRoute
   '/api/chat': typeof ApiChatRoute
   '/api/health': typeof ApiHealthRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/api/blueprint': typeof ApiBlueprintRoute
   '/api/chat': typeof ApiChatRoute
   '/api/health': typeof ApiHealthRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/api/chat' | '/api/health'
+  fullPaths: '/' | '/api/blueprint' | '/api/chat' | '/api/health'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/api/chat' | '/api/health'
-  id: '__root__' | '/' | '/api/chat' | '/api/health'
+  to: '/' | '/api/blueprint' | '/api/chat' | '/api/health'
+  id: '__root__' | '/' | '/api/blueprint' | '/api/chat' | '/api/health'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  ApiBlueprintRoute: typeof ApiBlueprintRoute
   ApiChatRoute: typeof ApiChatRoute
   ApiHealthRoute: typeof ApiHealthRoute
 }
@@ -66,6 +76,13 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/blueprint': {
+      id: '/api/blueprint'
+      path: '/api/blueprint'
+      fullPath: '/api/blueprint'
+      preLoaderRoute: typeof ApiBlueprintRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/chat': {
@@ -87,6 +104,7 @@ declare module '@tanstack/react-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  ApiBlueprintRoute: ApiBlueprintRoute,
   ApiChatRoute: ApiChatRoute,
   ApiHealthRoute: ApiHealthRoute,
 }
