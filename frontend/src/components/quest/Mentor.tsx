@@ -7,7 +7,7 @@ import { TOPIC_METADATA, type TopicType } from "@/lib/mentor-knowledge";
 import { YadukLogo } from "./YadukLogo";
 import { Send, Sparkles, X, RotateCcw, BookOpen } from "lucide-react";
 
-function formatMentorMarkdown(raw: string): string {
+export function formatMentorMarkdown(raw: string): string {
   if (!raw) return "";
   let text = raw;
 

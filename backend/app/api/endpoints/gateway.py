@@ -24,6 +24,7 @@ class ChatMessage(BaseModel):
 class ChatRequest(BaseModel):
     messages: list[Any]
     context: Optional[dict] = None
+    system: Optional[str] = None
 
 @router.post("/generate-json")
 def gateway_generate_json(req: GenerateJsonRequest):
@@ -65,13 +66,23 @@ def gateway_chat(req: ChatRequest):
     Direct mentor chat response using task-aware router with Groq fallback.
     """
     try:
-        system = (
-            "You are Yaduk, the AI Project Mentor and Architect. "
-            "Keep responses short, crisp, and laser-focused on the student's exact query (around 120-160 words). "
-            "Structure answers cleanly: 1) Core idea / direct answer, 2) Technical context and rationale, and 3) 2-3 actionable suggestions or next steps. "
-            "Avoid unprompted long text or massive code dumps unless the student explicitly asks."
-        )
-        if req.context:
+        if req.system and req.system.strip():
+            system = req.system.strip()
+        else:
+            system = (
+                "You are Yaduk, the expert AI Project Mentor and Systems Architect.\n\n"
+                "MANDATORY 3-PART RESPONSE STRUCTURE:\n"
+                "### 🎯 Core Verdict\n"
+                "[1-2 crisp sentences directly answering the query with zero fluff. Bold key terms.]\n\n"
+                "### ⚙️ Technical Breakdown\n"
+                "- **Architecture / Decision:** Concrete technical rationale.\n"
+                "- **Implementation / Trade-off:** Practical engineering reason (latency, complexity, tooling).\n\n"
+                "### 🚀 Immediate Next Move\n"
+                "🎯 **What to do next:** [1 immediate, specific command or code action to perform now.]\n\n"
+                "> 💡 **Supervisor / Viva Tip:** [1 sentence explaining how to defend this choice in your evaluation.]\n\n"
+                "Never output multi-column markdown tables or raw HTML tags. Keep total length around 120-160 words."
+            )
+        if req.context and not req.system:
             system += f"\n\nCONTEXT:\n{str(req.context)[:8000]}"
             
         last_msg = ""

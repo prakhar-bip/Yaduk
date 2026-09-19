@@ -203,10 +203,15 @@ export const Route = createFileRoute("/api/chat")({
               );
             }
 
-            // Strategy D: Resilient default mentor guidance
+            // Strategy D: Resilient default mentor guidance (strictly structured)
+            const fallbackText =
+              activeTopic === "ui_ux_design"
+                ? `### 🎨 Visual & Contrast Verdict\nYour active theme provides high-contrast WCAG AA readability for your engineering capstone.\n\n### 📐 Design System Rationale\n- **Color Palette:** The primary deep tone establishes executive credibility while the accent draws focus to core actions.\n- **Typography:** The pairing provides clean tabular data scanning and clear heading hierarchy.\n\n### 🛠️ Recommended Styling Tweak\n🎯 **Tailwind / CSS Tweak:** Ensure interactive buttons use \`hover:opacity-90 active:scale-98 transition-all\` for responsive tactile feedback.\n\n> 💡 **Design Evaluator Tip:** Emphasize to evaluators that high contrast and accessible data tables were deliberate engineering decisions.`
+                : `### 🎯 Core Verdict\nFocus on establishing a verified walking skeleton first: connect your backend database and expose one working API endpoint before expanding your UI.\n\n### ⚙️ Technical Breakdown\n- **Backend Persistence:** Verify migrations and entity relationships early to avoid downstream schema refactors.\n- **API Contracts:** Define strict request/response shapes with TypeScript to ensure end-to-end type safety.\n\n### 🚀 Immediate Next Move\n🎯 **What to do next:** Run your local server and confirm the primary health-check and entity CRUD endpoints respond with HTTP 200.\n\n> 💡 **Supervisor / Viva Tip:** Explain to evaluators that you adopted an API-first methodology to de-risk system integration early.`;
+
             return new Response(
               JSON.stringify({
-                text: "I am ready to help you build your project! Focus on setting up your core database schema and primary API endpoints first before building the frontend interface.",
+                text: fallbackText,
                 activeTopic,
               }),
               {

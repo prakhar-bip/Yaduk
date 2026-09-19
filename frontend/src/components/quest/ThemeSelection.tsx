@@ -28,14 +28,21 @@ import {
   Database,
   Send,
   Minimize2,
-  Maximize2,
   Code2,
+  Globe,
+  Lock,
+  LayoutDashboard,
+  Boxes,
+  FileCheck2,
+  ArrowRight,
+  SlidersHorizontal,
 } from "lucide-react";
 import { toast } from "sonner";
-import type { Blueprint, StudentProfile } from "@/lib/types";
+import type { Blueprint, StudentProfile, UserWorkflowStep } from "@/lib/types";
 import {
   suggestThemes,
   generateProjectThemedSuggestions,
+  getDefaultUserWorkflow,
   type AiThemeSuggestion,
 } from "@/lib/quest.functions";
 import { getContrastRatio, getWcagCompliance } from "@/lib/wcag";
@@ -78,7 +85,7 @@ type MentorMessage = {
 const UI_QUICK_PROMPTS = [
   "Is my color contrast readable for college evaluators?",
   "What color psychology works best for my domain?",
-  "Should I use cards or a data table for my core view?",
+  "How should I style my landing page hero vs dashboard?",
   "Suggest a subtle accent color that complements my primary.",
 ];
 
@@ -95,8 +102,16 @@ export function ThemeSelection({
   onBack: () => void;
   isGenerating?: boolean;
 }) {
-  const initialProjectThemes = generateProjectThemedSuggestions(blueprint, profile);
+  // Query only the required Page Workflow from the Knowledge Base (The "Godown")
+  const workflowPages: UserWorkflowStep[] =
+    blueprint.userWorkflow && blueprint.userWorkflow.length > 0
+      ? blueprint.userWorkflow
+      : getDefaultUserWorkflow(blueprint.title);
 
+  const [activePageIndex, setActivePageIndex] = useState<number>(0);
+  const activePage: UserWorkflowStep = workflowPages[activePageIndex] ?? workflowPages[0]!;
+
+  const initialProjectThemes = generateProjectThemedSuggestions(blueprint, profile);
   const [aiSuggestions, setAiSuggestions] = useState<AiThemeSuggestion[]>(initialProjectThemes);
   const [selectedThemeId, setSelectedThemeId] = useState<string>(
     initialProjectThemes[0]?.id || "project-theme-1",
@@ -111,7 +126,6 @@ export function ThemeSelection({
   const [accentColor, setAccentColor] = useState<string>(activePreset?.palette?.[2] || "#10B981");
   const [darkColor, setDarkColor] = useState<string>(activePreset?.palette?.[3] || "#020617");
   const [selectedFont, setSelectedFont] = useState<FontPairing>(getInitialFont(activePreset?.name || ""));
-  const [layoutStyle, setLayoutStyle] = useState<"sidebar" | "topnav" | "split">("sidebar");
 
   // Floating Dock & Modal State
   const [isDockOpen, setIsDockOpen] = useState<boolean>(true);
@@ -124,7 +138,7 @@ export function ThemeSelection({
     {
       id: "welcome",
       role: "assistant",
-      text: `Hello! I'm your dedicated UI/UX Design Mentor for "${blueprint.title}". I'm watching your full-screen skeleton live. Ask me about color psychology, contrast accessibility, or layout structure!`,
+      text: `Hello! I'm your UI/UX Design Mentor for "${blueprint.title}". You are currently inspecting the skeleton for "${activePage.screen}". Ask me about visual hierarchy, typography, or color contrast for this view!`,
     },
   ]);
   const [mentorInput, setMentorInput] = useState<string>("");
@@ -136,11 +150,6 @@ export function ThemeSelection({
   // Compute live WCAG contrast
   const contrastWithWhite = getContrastRatio(primaryColor, "#FFFFFF");
   const wcagStatus = getWcagCompliance(contrastWithWhite);
-
-  // Domain Detection
-  const domainText = `${blueprint.title || ""} ${blueprint.overview?.problemStatement || ""} ${blueprint.overview?.proposedSolution || ""} ${blueprint.stack?.map((s) => s.name).join(" ") || ""}`.toLowerCase();
-  const isSecurityOrFinTech = /token|auth|oauth|bank|pay|crypto|vault|encrypt|security|pci|credit/.test(domainText);
-  const isHealthOrBio = /health|patient|doctor|scan|clinical|medical|disease|hospital/.test(domainText);
 
   // Auto-scroll chat
   useEffect(() => {
@@ -230,6 +239,8 @@ export function ThemeSelection({
             profile,
             blueprint: {
               ...blueprint,
+              activeScreen: activePage.screen,
+              activeRoute: activePage.route,
               activeTheme: {
                 primary: primaryColor,
                 secondary: secondaryColor,
@@ -251,7 +262,7 @@ export function ThemeSelection({
       const data = await res.json();
       const replyText =
         data.text ||
-        "I recommend ensuring high contrast between your data rows and status badges so evaluators can read the table effortlessly.";
+        `On the ${activePage.screen}, ensure key actions use ${primaryColor} with high-contrast text to guide evaluators naturally.`;
 
       setMentorMessages((prev) => [
         ...prev,
@@ -267,7 +278,7 @@ export function ThemeSelection({
         {
           id: `mentor-${Date.now()}`,
           role: "assistant",
-          text: `Your current palette (${primaryColor} with ${accentColor}) has a contrast ratio of ${contrastWithWhite}:1. This meets WCAG 2.1 AA standards. Make sure secondary data text maintains at least 4.5:1 on background surfaces.`,
+          text: `Your current palette (${primaryColor} with ${accentColor}) has a contrast ratio of ${contrastWithWhite}:1. This meets WCAG 2.1 AA standards for ${activePage.screen}.`,
         },
       ]);
     } finally {
@@ -303,6 +314,22 @@ module.exports = {
     onSelectTheme(richThemeDesc);
   };
 
+  const getPageIcon = (idx: number) => {
+    switch (idx) {
+      case 0:
+        return <Globe className="size-3.5" />;
+      case 1:
+        return <Lock className="size-3.5" />;
+      case 2:
+        return <LayoutDashboard className="size-3.5" />;
+      case 3:
+        return <Boxes className="size-3.5" />;
+      case 4:
+      default:
+        return <FileCheck2 className="size-3.5" />;
+    }
+  };
+
   return (
     <div
       className="relative min-h-screen space-y-4 pb-24"
@@ -325,7 +352,7 @@ module.exports = {
               <span className="rounded-md bg-blue-50 px-2 py-0.5 font-mono text-[10px] font-bold text-blue-700">
                 STEP 7: VISUAL DESIGN STUDIO
               </span>
-              <span className="text-xs text-slate-400">· Full-Screen Interactive Skeleton</span>
+              <span className="text-xs text-slate-400">· Multi-Page Skeleton Inspector</span>
             </div>
             <h2 className="font-display text-lg sm:text-xl font-bold text-slate-900 flex items-center gap-2">
               <span>{blueprint.title}</span>
@@ -366,205 +393,396 @@ module.exports = {
             style={{ backgroundColor: primaryColor }}
           >
             <Wand2 className={`size-4 ${isGenerating ? "animate-spin" : ""}`} />
-            <span>{isGenerating ? "Manifesting Codebase..." : "Confirm Theme & Manifest Code →"}</span>
+            <span>{isGenerating ? "Manifesting Codebase..." : "Confirm Theme & Continue →"}</span>
           </button>
         </div>
       </div>
 
-      {/* 2. Full-Screen Edge-to-Edge Project Skeleton */}
+      {/* 2. Page Skeleton Inspector Canvas */}
       <div className="w-full rounded-2xl border border-slate-200 bg-white shadow-md overflow-hidden transition-all duration-300">
-        {/* Mock Application Top Navigation Bar */}
-        <header className="flex items-center justify-between border-b border-slate-100 px-5 py-3 bg-slate-50/80">
-          <div className="flex items-center gap-6">
-            <div className="flex items-center gap-2.5">
-              <span
-                className="size-7 rounded-lg flex items-center justify-center text-xs text-white font-bold shadow-xs"
-                style={{ backgroundColor: primaryColor }}
-              >
-                {blueprint.title ? blueprint.title[0] : "Y"}
-              </span>
-              <span className="font-bold text-sm text-slate-900 tracking-tight" style={{ fontFamily: selectedFont.heading }}>
-                {blueprint.title}
-              </span>
-            </div>
-
-            {/* Nav Links */}
-            <nav className="hidden md:flex items-center gap-1 text-xs font-medium text-slate-600">
-              <span
-                className="px-2.5 py-1 rounded-md text-white font-semibold shadow-xs"
-                style={{ backgroundColor: primaryColor }}
-              >
-                Dashboard
-              </span>
-              <span className="px-2.5 py-1 rounded-md hover:bg-slate-200/60 cursor-pointer">
-                {isSecurityOrFinTech ? "Tokens & Vault" : "Resources"}
-              </span>
-              <span className="px-2.5 py-1 rounded-md hover:bg-slate-200/60 cursor-pointer">
-                {isSecurityOrFinTech ? "OAuth Clients" : "Data Services"}
-              </span>
-              <span className="px-2.5 py-1 rounded-md hover:bg-slate-200/60 cursor-pointer">
-                Telemetry
-              </span>
-              <span className="px-2.5 py-1 rounded-md hover:bg-slate-200/60 cursor-pointer">
-                Settings
-              </span>
-            </nav>
-          </div>
-
-          <div className="flex items-center gap-3">
-            <div className="relative hidden sm:block">
-              <Search className="size-3.5 text-slate-400 absolute left-2.5 top-2" />
-              <input
-                type="text"
-                placeholder="Search resources, tokens, endpoints..."
-                disabled
-                className="rounded-lg border border-slate-200 bg-white pl-8 pr-3 py-1 text-xs w-56 text-slate-400 focus:outline-none"
-              />
-            </div>
-            <div className="size-8 rounded-full border border-slate-200 bg-white grid place-items-center text-slate-600 shadow-xs">
-              <Bell className="size-3.5" />
-            </div>
-            <div
-              className="size-8 rounded-full text-white text-xs font-bold grid place-items-center shadow-xs"
-              style={{ backgroundColor: secondaryColor }}
-            >
-              {profile?.name ? profile.name[0] : "S"}
-            </div>
-          </div>
-        </header>
-
-        {/* Dashboard Body */}
-        <div className="p-6 space-y-6">
-          {/* Subheader & Live Controls */}
-          <div className="flex flex-wrap items-center justify-between gap-4 border-b border-slate-100 pb-4">
+        {/* Screen Switcher Navigation Bar (Powered directly by the Knowledge Base User Workflow) */}
+        <div className="border-b border-slate-200 bg-slate-50 px-4 py-3">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div>
-              <h3 className="text-xl font-bold text-slate-900 tracking-tight" style={{ fontFamily: selectedFont.heading }}>
-                {isSecurityOrFinTech
-                  ? "Virtual Token Engine & Cryptographic Vault"
-                  : isHealthOrBio
-                  ? "Diagnostic Telemetry & Patient Inference Engine"
-                  : "Production Systems Telemetry & Control Center"}
-              </h3>
-              <p className="text-xs text-slate-500 mt-0.5">
-                Real-time production metrics tailored for {blueprint.overview?.targetUsers || "evaluators and stakeholders"}
-              </p>
-            </div>
-
-            <div className="flex items-center gap-2.5">
-              <span
-                className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-semibold text-white shadow-xs"
-                style={{ backgroundColor: accentColor }}
-              >
-                <CheckCircle2 className="size-3.5" />
-                <span>Live Engine Online</span>
+              <span className="text-[10px] font-mono font-bold text-slate-400 uppercase tracking-wider block mb-1">
+                Knowledge Base Workflow Pages (The "Godown")
               </span>
-              <button
-                type="button"
-                className="rounded-lg px-3 py-1 text-xs font-bold text-white shadow-xs"
-                style={{ backgroundColor: primaryColor }}
-              >
-                {isSecurityOrFinTech ? "+ Issue Virtual Token" : "+ Deploy Service"}
-              </button>
+              <div className="flex items-center gap-1.5 flex-wrap">
+                {workflowPages.map((page, idx) => {
+                  const isActive = activePageIndex === idx;
+                  return (
+                    <button
+                      key={idx}
+                      type="button"
+                      onClick={() => setActivePageIndex(idx)}
+                      className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                        isActive
+                          ? "text-white shadow-xs scale-102"
+                          : "bg-white border border-slate-200/90 text-slate-600 hover:bg-slate-100/80 hover:text-slate-900"
+                      }`}
+                      style={isActive ? { backgroundColor: primaryColor } : {}}
+                    >
+                      {getPageIcon(idx)}
+                      <span>{page.screen}</span>
+                      <span
+                        className={`text-[9px] font-mono px-1.5 py-0.2 rounded ${
+                          isActive ? "bg-white/20 text-white" : "bg-slate-100 text-slate-500"
+                        }`}
+                      >
+                        {page.route}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div className="text-right hidden md:block">
+              <span className="text-[10px] font-mono text-slate-400 block">Inspecting Skeleton:</span>
+              <span className="text-xs font-bold text-slate-700">
+                {activePage.screen} ({activePage.route})
+              </span>
             </div>
           </div>
+        </div>
 
-          {/* 3 Full-Width Key Metric Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="rounded-xl border border-slate-200/80 bg-slate-50/50 p-4 shadow-xs">
-              <div className="flex items-center justify-between text-xs text-slate-500">
-                <span className="font-semibold flex items-center gap-1.5">
-                  <Key className="size-3.5 text-blue-600" />
-                  <span>{isSecurityOrFinTech ? "Active Virtual Tokens" : "Active Entities"}</span>
-                </span>
-                <span
-                  className="px-1.5 py-0.5 rounded text-[10px] font-bold text-white shadow-xs"
-                  style={{ backgroundColor: accentColor }}
+        {/* Dynamic Skeleton Wireframe Container */}
+        <div className="p-6 sm:p-8 bg-slate-50/30 min-h-[520px]">
+          {/* SKELETON 1: LANDING & SHOWCASE PAGE */}
+          {activePageIndex === 0 && (
+            <div className="max-w-5xl mx-auto space-y-8 animate-in fade-in duration-200">
+              {/* Public Topnav Skeleton */}
+              <div className="flex items-center justify-between border-b border-slate-200 pb-4">
+                <div className="flex items-center gap-2">
+                  <span
+                    className="size-6 rounded-md flex items-center justify-center text-[10px] text-white font-bold"
+                    style={{ backgroundColor: primaryColor }}
+                  >
+                    {blueprint.title ? blueprint.title[0] : "Y"}
+                  </span>
+                  <span className="font-bold text-sm text-slate-900" style={{ fontFamily: selectedFont.heading }}>
+                    {blueprint.title}
+                  </span>
+                </div>
+                <div className="hidden sm:flex items-center gap-4 text-xs font-medium text-slate-600">
+                  <span className="hover:text-slate-900 cursor-pointer">Architecture</span>
+                  <span className="hover:text-slate-900 cursor-pointer">Features</span>
+                  <span className="hover:text-slate-900 cursor-pointer">Docs</span>
+                  <span className="hover:text-slate-900 cursor-pointer">Live Demo</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setActivePageIndex(1)}
+                    className="px-3 py-1 rounded-lg text-xs font-bold text-white shadow-xs cursor-pointer"
+                    style={{ backgroundColor: primaryColor }}
+                  >
+                    Get Started →
+                  </button>
+                </div>
+              </div>
+
+              {/* Hero Section Wireframe */}
+              <div className="text-center py-6 sm:py-10 space-y-4 max-w-2xl mx-auto">
+                <div className="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold border border-slate-200 bg-white shadow-xs">
+                  <span className="size-2 rounded-full" style={{ backgroundColor: accentColor }} />
+                  <span className="text-slate-700">Production-Grade Architecture Specification</span>
+                </div>
+
+                <h1
+                  className="text-3xl sm:text-4xl font-extrabold text-slate-900 tracking-tight leading-tight"
+                  style={{ fontFamily: selectedFont.heading }}
                 >
-                  +14.2% Trend
-                </span>
-              </div>
-              <p className="text-2xl font-extrabold text-slate-900 mt-2" style={{ fontFamily: selectedFont.heading }}>
-                14,290
-              </p>
-              <p className="text-[11px] text-slate-400 mt-1">PCI-DSS Tokenized across active merchants</p>
-            </div>
+                  Engineered Solution for{" "}
+                  <span style={{ color: primaryColor }}>{blueprint.title}</span>
+                </h1>
 
-            <div className="rounded-xl border border-slate-200/80 bg-slate-50/50 p-4 shadow-xs">
-              <div className="flex items-center justify-between text-xs text-slate-500">
-                <span className="font-semibold flex items-center gap-1.5">
-                  <ShieldCheck className="size-3.5 text-emerald-600" />
-                  <span>Encryption & Vault State</span>
-                </span>
-                <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-800">
-                  AES-256-GCM
-                </span>
-              </div>
-              <p className="text-2xl font-extrabold text-slate-900 mt-2" style={{ fontFamily: selectedFont.heading }}>
-                Vault Armed
-              </p>
-              <p className="text-[11px] text-slate-400 mt-1">AEAD zero-plaintext memory isolation</p>
-            </div>
+                <p className="text-sm text-slate-600 leading-relaxed max-w-xl mx-auto">
+                  {blueprint.overview?.summary ||
+                    "A modular, scalable systems architecture designed to deliver verifiable results for evaluators and real-world users."}
+                </p>
 
-            <div className="rounded-xl border border-slate-200/80 bg-slate-50/50 p-4 shadow-xs">
-              <div className="flex items-center justify-between text-xs text-slate-500">
-                <span className="font-semibold flex items-center gap-1.5">
-                  <Activity className="size-3.5 text-indigo-600" />
-                  <span>API Response Latency</span>
-                </span>
-                <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-blue-100 text-blue-800">
-                  P99 &lt; 35ms
-                </span>
+                <div className="flex flex-wrap items-center justify-center gap-3 pt-2">
+                  <button
+                    type="button"
+                    className="px-5 py-2.5 rounded-xl text-xs sm:text-sm font-bold text-white shadow-md transition-all hover:opacity-95"
+                    style={{ backgroundColor: primaryColor }}
+                  >
+                    Launch Live Workspace
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setActivePageIndex(2)}
+                    className="px-4 py-2.5 rounded-xl text-xs sm:text-sm font-semibold border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 shadow-xs"
+                  >
+                    Explore Dashboard →
+                  </button>
+                </div>
               </div>
-              <p className="text-2xl font-extrabold text-slate-900 mt-2" style={{ fontFamily: selectedFont.heading }}>
-                18.4 ms
-              </p>
-              <p className="text-[11px] text-slate-400 mt-1">Sub-second authorization roundtrip</p>
-            </div>
-          </div>
 
-          {/* Full-Width Telemetry & Data Table Row */}
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
-            {/* Left/Main: Full Feature Data Table */}
-            <div className="lg:col-span-8 rounded-xl border border-slate-200 bg-white p-4 shadow-xs space-y-3">
-              <div className="flex items-center justify-between">
+              {/* 3-Column Feature Matrix Wireframe */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-4">
+                {(blueprint.mvpFeatures || []).slice(0, 3).map((f, i) => (
+                  <div key={i} className="rounded-xl border border-slate-200 bg-white p-5 shadow-xs space-y-2">
+                    <div
+                      className="size-8 rounded-lg flex items-center justify-center text-xs text-white font-bold"
+                      style={{ backgroundColor: i === 0 ? primaryColor : i === 1 ? secondaryColor : accentColor }}
+                    >
+                      0{i + 1}
+                    </div>
+                    <h3 className="font-bold text-sm text-slate-900" style={{ fontFamily: selectedFont.heading }}>
+                      {f.name}
+                    </h3>
+                    <p className="text-xs text-slate-500 leading-relaxed">{f.detail}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* SKELETON 2: AUTHENTICATION & ONBOARDING */}
+          {activePageIndex === 1 && (
+            <div className="max-w-md mx-auto py-6 sm:py-10 space-y-6 animate-in fade-in duration-200">
+              <div className="text-center space-y-1">
+                <div
+                  className="size-10 rounded-xl mx-auto flex items-center justify-center text-white shadow-xs"
+                  style={{ backgroundColor: primaryColor }}
+                >
+                  <Lock className="size-5" />
+                </div>
+                <h3 className="text-xl font-bold text-slate-900 pt-2" style={{ fontFamily: selectedFont.heading }}>
+                  Authenticate Workspace
+                </h3>
+                <p className="text-xs text-slate-500">
+                  Access protected endpoints and services for {blueprint.title}
+                </p>
+              </div>
+
+              {/* Auth Card Wireframe */}
+              <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm space-y-4">
+                <div className="flex border-b border-slate-200">
+                  <button
+                    type="button"
+                    className="flex-1 pb-2.5 text-xs font-bold border-b-2 text-slate-900"
+                    style={{ borderColor: primaryColor }}
+                  >
+                    OAuth2 Client
+                  </button>
+                  <button type="button" className="flex-1 pb-2.5 text-xs font-medium text-slate-400">
+                    Bearer Token
+                  </button>
+                </div>
+
+                <div className="space-y-3 pt-1">
+                  <div>
+                    <label className="text-[11px] font-bold text-slate-600 block mb-1">Client ID / Key</label>
+                    <input
+                      type="text"
+                      disabled
+                      placeholder="client_vts_84910294829"
+                      className="w-full rounded-lg border border-slate-200 bg-slate-50/50 px-3 py-2 text-xs font-mono text-slate-600"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-[11px] font-bold text-slate-600 block mb-1">Client Secret</label>
+                    <input
+                      type="password"
+                      disabled
+                      value="••••••••••••••••••••••••"
+                      className="w-full rounded-lg border border-slate-200 bg-slate-50/50 px-3 py-2 text-xs font-mono text-slate-600"
+                    />
+                  </div>
+
+                  <div className="flex items-center justify-between text-[11px] text-slate-500 pt-1">
+                    <label className="flex items-center gap-1.5 cursor-pointer">
+                      <input type="checkbox" defaultChecked className="rounded border-slate-300" />
+                      <span>Remember credentials</span>
+                    </label>
+                    <span className="text-blue-600 font-semibold cursor-pointer">Regenerate secret</span>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => setActivePageIndex(2)}
+                    className="w-full py-2.5 rounded-xl text-xs font-bold text-white shadow-sm transition-all hover:opacity-95 cursor-pointer"
+                    style={{ backgroundColor: primaryColor }}
+                  >
+                    Exchange Token & Launch Dashboard →
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* SKELETON 3: MAIN TELEMETRY DASHBOARD */}
+          {activePageIndex === 2 && (
+            <div className="max-w-5xl mx-auto space-y-6 animate-in fade-in duration-200">
+              {/* Dashboard Subheader */}
+              <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 pb-3">
                 <div>
-                  <h4 className="font-bold text-sm text-slate-900 flex items-center gap-2" style={{ fontFamily: selectedFont.heading }}>
-                    <Database className="size-4 text-slate-600" />
-                    <span>
-                      {isSecurityOrFinTech
-                        ? "Tokenized Payment Credentials (VTS Registry)"
-                        : "Core Domain Registry & Service Entities"}
-                    </span>
-                  </h4>
+                  <h3 className="text-lg font-bold text-slate-900" style={{ fontFamily: selectedFont.heading }}>
+                    Telemetry & Operational Overview
+                  </h3>
                   <p className="text-xs text-slate-500">
-                    Live database records rendered with current typography and status styling
+                    Real-time operational health for {blueprint.overview?.targetUsers || "evaluators"}
                   </p>
                 </div>
-
                 <div className="flex items-center gap-2">
-                  <span className="text-[11px] font-mono text-slate-400">Total: 4 Records Shown</span>
+                  <span
+                    className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold text-white shadow-xs"
+                    style={{ backgroundColor: accentColor }}
+                  >
+                    <CheckCircle2 className="size-3.5" />
+                    <span>All Services Healthy</span>
+                  </span>
                 </div>
               </div>
 
-              {/* Data Table */}
-              <div className="overflow-x-auto rounded-lg border border-slate-200/90">
+              {/* 3 Metric KPI Cards */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-xs">
+                  <div className="flex items-center justify-between text-xs text-slate-500">
+                    <span className="font-semibold flex items-center gap-1.5">
+                      <Activity className="size-3.5 text-blue-600" />
+                      <span>Active Transactions</span>
+                    </span>
+                    <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded">
+                      +14.2%
+                    </span>
+                  </div>
+                  <p className="text-2xl font-extrabold text-slate-900 mt-2" style={{ fontFamily: selectedFont.heading }}>
+                    14,290
+                  </p>
+                  <p className="text-[11px] text-slate-400 mt-1">Processed across active nodes</p>
+                </div>
+
+                <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-xs">
+                  <div className="flex items-center justify-between text-xs text-slate-500">
+                    <span className="font-semibold flex items-center gap-1.5">
+                      <ShieldCheck className="size-3.5 text-emerald-600" />
+                      <span>System Cryptography</span>
+                    </span>
+                    <span
+                      className="text-[10px] font-bold text-white px-1.5 py-0.5 rounded"
+                      style={{ backgroundColor: primaryColor }}
+                    >
+                      Armed
+                    </span>
+                  </div>
+                  <p className="text-2xl font-extrabold text-slate-900 mt-2" style={{ fontFamily: selectedFont.heading }}>
+                    AES-256-GCM
+                  </p>
+                  <p className="text-[11px] text-slate-400 mt-1">Zero-plaintext isolation</p>
+                </div>
+
+                <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-xs">
+                  <div className="flex items-center justify-between text-xs text-slate-500">
+                    <span className="font-semibold flex items-center gap-1.5">
+                      <Activity className="size-3.5 text-indigo-600" />
+                      <span>Roundtrip Latency</span>
+                    </span>
+                    <span className="text-[10px] font-bold text-blue-700 bg-blue-50 px-1.5 py-0.5 rounded">
+                      P99 &lt; 35ms
+                    </span>
+                  </div>
+                  <p className="text-2xl font-extrabold text-slate-900 mt-2" style={{ fontFamily: selectedFont.heading }}>
+                    18.4 ms
+                  </p>
+                  <p className="text-[11px] text-slate-400 mt-1">Sub-second execution</p>
+                </div>
+              </div>
+
+              {/* Waveform Telemetry Chart */}
+              <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-xs space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                    <TrendingUp className="size-3.5 text-blue-600" />
+                    <span>Real-Time Query Throughput</span>
+                  </span>
+                  <div className="flex items-center gap-3 text-[11px] text-slate-500">
+                    <span className="flex items-center gap-1">
+                      <span className="size-2 rounded-full" style={{ backgroundColor: primaryColor }} />
+                      <span>Production</span>
+                    </span>
+                    <span className="flex items-center gap-1">
+                      <span className="size-2 rounded-full" style={{ backgroundColor: secondaryColor }} />
+                      <span>Staging</span>
+                    </span>
+                  </div>
+                </div>
+
+                <div className="h-28 w-full">
+                  <svg className="w-full h-full" viewBox="0 0 400 100" preserveAspectRatio="none">
+                    <defs>
+                      <linearGradient id="pageThemeGrad" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor={primaryColor} stopOpacity="0.3" />
+                        <stop offset="100%" stopColor={primaryColor} stopOpacity="0.0" />
+                      </linearGradient>
+                    </defs>
+                    <path
+                      d="M 0,75 Q 60,20 120,45 T 240,25 T 320,55 T 400,15 L 400,100 L 0,100 Z"
+                      fill="url(#pageThemeGrad)"
+                    />
+                    <path
+                      d="M 0,75 Q 60,20 120,45 T 240,25 T 320,55 T 400,15"
+                      fill="none"
+                      stroke={primaryColor}
+                      strokeWidth="2.5"
+                    />
+                    <path
+                      d="M 0,85 Q 60,50 120,70 T 240,45 T 320,75 T 400,35"
+                      fill="none"
+                      stroke={secondaryColor}
+                      strokeWidth="1.5"
+                      strokeDasharray="4 2"
+                    />
+                  </svg>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* SKELETON 4: CORE DOMAIN WORKFLOW / REGISTRY */}
+          {activePageIndex === 3 && (
+            <div className="max-w-5xl mx-auto space-y-5 animate-in fade-in duration-200">
+              <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 pb-3">
+                <div>
+                  <h3 className="text-lg font-bold text-slate-900" style={{ fontFamily: selectedFont.heading }}>
+                    Core Entity Registry & Processing Workspace
+                  </h3>
+                  <p className="text-xs text-slate-500">
+                    Manage active records, trigger transformations, and verify state
+                  </p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    className="px-3 py-1.5 rounded-lg text-xs font-bold text-white shadow-xs"
+                    style={{ backgroundColor: primaryColor }}
+                  >
+                    + Execute Action
+                  </button>
+                </div>
+              </div>
+
+              {/* Data Table Skeleton */}
+              <div className="rounded-xl border border-slate-200 bg-white overflow-hidden shadow-xs">
                 <table className="w-full text-left text-xs">
                   <thead className="border-b border-slate-200 bg-slate-50 text-slate-500 font-mono text-[11px]">
                     <tr>
-                      <th className="p-3">Token ID / UUID</th>
-                      <th className="p-3">{isSecurityOrFinTech ? "Masked PAN" : "Entity Name"}</th>
-                      <th className="p-3">Associated Merchant</th>
+                      <th className="p-3">Reference ID</th>
+                      <th className="p-3">Entity / Payload</th>
+                      <th className="p-3">Service Owner</th>
                       <th className="p-3">Status</th>
-                      <th className="p-3">Created</th>
+                      <th className="p-3">Timestamp</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 text-slate-700">
                     <tr>
-                      <td className="p-3 font-mono text-slate-500 font-semibold">tok_9f81...4a2b</td>
-                      <td className="p-3 font-mono font-bold text-slate-800">
-                        {isSecurityOrFinTech ? "****-****-****-4242" : "Primary Service Worker"}
-                      </td>
-                      <td className="p-3">Apex Merchant Gateway</td>
+                      <td className="p-3 font-mono text-slate-500 font-semibold">rec_9f814a2b</td>
+                      <td className="p-3 font-mono font-bold text-slate-800">Primary Core Execution Payload</td>
+                      <td className="p-3">Production Cluster 01</td>
                       <td className="p-3">
                         <span
                           className="inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[10px] font-bold text-white shadow-xs"
@@ -576,11 +794,9 @@ module.exports = {
                       <td className="p-3 font-mono text-slate-400 text-[11px]">2 mins ago</td>
                     </tr>
                     <tr>
-                      <td className="p-3 font-mono text-slate-500 font-semibold">tok_3c77...9e10</td>
-                      <td className="p-3 font-mono font-bold text-slate-800">
-                        {isSecurityOrFinTech ? "****-****-****-8812" : "Kafka Ingestion Pipeline"}
-                      </td>
-                      <td className="p-3">Global Logistics LLC</td>
+                      <td className="p-3 font-mono text-slate-500 font-semibold">rec_3c779e10</td>
+                      <td className="p-3 font-mono font-bold text-slate-800">Ingestion Ingress Stream</td>
+                      <td className="p-3">Worker Node Beta</td>
                       <td className="p-3">
                         <span
                           className="inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[10px] font-bold text-white shadow-xs"
@@ -589,14 +805,12 @@ module.exports = {
                           ACTIVE
                         </span>
                       </td>
-                      <td className="p-3 font-mono text-slate-400 text-[11px]">14 mins ago</td>
+                      <td className="p-3 font-mono text-slate-400 text-[11px]">18 mins ago</td>
                     </tr>
                     <tr>
-                      <td className="p-3 font-mono text-slate-500 font-semibold">tok_1a02...55f8</td>
-                      <td className="p-3 font-mono font-bold text-slate-800">
-                        {isSecurityOrFinTech ? "****-****-****-1009" : "OAuth Token Dispatcher"}
-                      </td>
-                      <td className="p-3">Staging Sandbox Merchant</td>
+                      <td className="p-3 font-mono text-slate-500 font-semibold">rec_1a0255f8</td>
+                      <td className="p-3 font-mono font-bold text-slate-800">Staging Test Fixture</td>
+                      <td className="p-3">QA Sandbox</td>
                       <td className="p-3">
                         <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 border border-amber-200 px-2 py-0.5 text-[10px] font-bold text-amber-700">
                           PENDING
@@ -604,104 +818,69 @@ module.exports = {
                       </td>
                       <td className="p-3 font-mono text-slate-400 text-[11px]">1 hour ago</td>
                     </tr>
-                    <tr>
-                      <td className="p-3 font-mono text-slate-500 font-semibold">tok_88b1...302a</td>
-                      <td className="p-3 font-mono font-bold text-slate-800">
-                        {isSecurityOrFinTech ? "****-****-****-9471" : "Audit Log Daemon"}
-                      </td>
-                      <td className="p-3">Sunset Financial Inc</td>
-                      <td className="p-3">
-                        <span className="inline-flex items-center gap-1 rounded-full bg-rose-50 border border-rose-200 px-2 py-0.5 text-[10px] font-bold text-rose-700">
-                          REVOKED
-                        </span>
-                      </td>
-                      <td className="p-3 font-mono text-slate-400 text-[11px]">Yesterday</td>
-                    </tr>
                   </tbody>
                 </table>
               </div>
             </div>
+          )}
 
-            {/* Right: Real-time Telemetry & Trajectory SVG */}
-            <div className="lg:col-span-4 rounded-xl border border-slate-200 bg-white p-4 shadow-xs space-y-4">
-              <div className="flex items-center justify-between">
-                <h4 className="font-bold text-sm text-slate-900 flex items-center gap-2" style={{ fontFamily: selectedFont.heading }}>
-                  <TrendingUp className="size-4 text-blue-600" />
-                  <span>Traffic & Query Trajectory</span>
-                </h4>
-                <span
-                  className="size-2.5 rounded-full animate-pulse"
-                  style={{ backgroundColor: primaryColor }}
-                />
-              </div>
-
-              {/* Dynamic Waveform Chart */}
-              <div className="h-32 w-full rounded-lg border border-slate-100 bg-slate-50/50 p-2">
-                <svg className="w-full h-full" viewBox="0 0 400 100" preserveAspectRatio="none">
-                  <defs>
-                    <linearGradient id="fullThemeGrad" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor={primaryColor} stopOpacity="0.35" />
-                      <stop offset="100%" stopColor={primaryColor} stopOpacity="0.0" />
-                    </linearGradient>
-                  </defs>
-                  <path
-                    d="M 0,75 Q 60,20 120,45 T 240,25 T 320,55 T 400,15 L 400,100 L 0,100 Z"
-                    fill="url(#fullThemeGrad)"
-                  />
-                  <path
-                    d="M 0,75 Q 60,20 120,45 T 240,25 T 320,55 T 400,15"
-                    fill="none"
-                    stroke={primaryColor}
-                    strokeWidth="2.5"
-                  />
-                  <path
-                    d="M 0,85 Q 60,50 120,70 T 240,45 T 320,75 T 400,35"
-                    fill="none"
-                    stroke={secondaryColor}
-                    strokeWidth="1.5"
-                    strokeDasharray="4 2"
-                  />
-                </svg>
-              </div>
-
-              {/* Specimen Buttons & UI Controls */}
-              <div className="space-y-2 pt-1 border-t border-slate-100">
-                <span className="text-[11px] font-mono text-slate-400 block uppercase">
-                  Active Button Aesthetics
-                </span>
-                <div className="flex flex-wrap gap-2">
+          {/* SKELETON 5: AUDIT, REVIEWS & COMPLIANCE */}
+          {activePageIndex === 4 && (
+            <div className="max-w-5xl mx-auto space-y-5 animate-in fade-in duration-200">
+              <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 pb-3">
+                <div>
+                  <h3 className="text-lg font-bold text-slate-900" style={{ fontFamily: selectedFont.heading }}>
+                    Audit Log & System Verification Stream
+                  </h3>
+                  <p className="text-xs text-slate-500">
+                    Cryptographically verifiable event stream and supervisor review records
+                  </p>
+                </div>
+                <div className="flex items-center gap-2">
                   <button
                     type="button"
-                    className="flex-1 py-1.5 rounded-lg text-xs font-bold text-white shadow-xs transition-all"
-                    style={{ backgroundColor: primaryColor }}
+                    className="px-3 py-1.5 rounded-lg text-xs font-semibold border border-slate-200 bg-white text-slate-700 shadow-xs hover:bg-slate-50"
                   >
-                    Primary Button
-                  </button>
-                  <button
-                    type="button"
-                    className="flex-1 py-1.5 rounded-lg text-xs font-bold text-white shadow-xs transition-all"
-                    style={{ backgroundColor: secondaryColor }}
-                  >
-                    Secondary
-                  </button>
-                  <button
-                    type="button"
-                    className="px-3 py-1.5 rounded-lg text-xs font-bold text-white shadow-xs transition-all"
-                    style={{ backgroundColor: accentColor }}
-                  >
-                    Accent
+                    Export Log (JSON/CSV)
                   </button>
                 </div>
               </div>
+
+              {/* Event Stream Wireframe */}
+              <div className="space-y-3">
+                {[
+                  { event: "STATE_TRANSITION_VERIFIED", hash: "sha256_9a01f82b", time: "Just now", status: "Verified" },
+                  { event: "OAUTH_BEARER_ISSUED", hash: "sha256_3b11ca0e", time: "12 mins ago", status: "Audited" },
+                  { event: "ENCRYPTION_VAULT_ROTATED", hash: "sha256_ff8849c1", time: "1 hour ago", status: "Compliant" },
+                ].map((item, idx) => (
+                  <div key={idx} className="rounded-xl border border-slate-200 bg-white p-4 shadow-xs flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <span className="size-2 rounded-full" style={{ backgroundColor: primaryColor }} />
+                      <div>
+                        <p className="text-xs font-bold text-slate-900 font-mono">{item.event}</p>
+                        <p className="text-[11px] font-mono text-slate-400">{item.hash}</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <span className="text-[11px] text-slate-400">{item.time}</span>
+                      <span
+                        className="px-2 py-0.5 rounded text-[10px] font-bold text-white shadow-xs"
+                        style={{ backgroundColor: accentColor }}
+                      >
+                        {item.status}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
             </div>
-          </div>
+          )}
         </div>
       </div>
 
       {/* 3. Floating Action Bubble (FAB) & Overlay Tool Window */}
-      {/* FLOATING ACTION BUBBLE */}
       <div className="fixed bottom-6 right-6 z-50 flex flex-col items-end gap-3">
-        {/* Floating Utility Overlay Window (When Open) */}
+        {/* Floating Utility Overlay Window */}
         {isDockOpen && (
           <div className="w-[calc(100vw-2rem)] sm:w-[440px] max-h-[80vh] rounded-2xl border border-slate-200/90 bg-white/95 backdrop-blur-xl shadow-2xl overflow-hidden flex flex-col transition-all duration-300 animate-in fade-in slide-in-from-bottom-5">
             {/* Window Top Navigation Bar */}
@@ -742,7 +921,7 @@ module.exports = {
                 <button
                   type="button"
                   onClick={() => setIsDockOpen(false)}
-                  className="size-7 rounded-lg hover:bg-slate-200/60 grid place-items-center text-slate-400 hover:text-slate-700 transition-colors"
+                  className="size-7 rounded-lg hover:bg-slate-200/60 grid place-items-center text-slate-400 hover:text-slate-700 transition-colors cursor-pointer"
                   title="Minimize floating dock"
                 >
                   <X className="size-4" />
@@ -920,7 +1099,7 @@ module.exports = {
                         const font = FONT_PAIRINGS.find((f) => f.id === e.target.value);
                         if (font) setSelectedFont(font);
                       }}
-                      className="w-full rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-800 focus:outline-none focus:border-blue-500"
+                      className="w-full rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-800 focus:outline-none focus:border-blue-500 cursor-pointer"
                     >
                       {FONT_PAIRINGS.map((f) => (
                         <option key={f.id} value={f.id}>
@@ -935,13 +1114,13 @@ module.exports = {
                     <button
                       type="button"
                       onClick={handleCopyTailwind}
-                      className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-600 hover:text-slate-900"
+                      className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-600 hover:text-slate-900 cursor-pointer"
                     >
                       <Code2 className="size-3.5 text-blue-600" />
                       <span>Copy Tailwind Config</span>
                     </button>
 
-                    <span className="text-[10px] font-mono text-slate-400">Updates canvas in real-time</span>
+                    <span className="text-[10px] font-mono text-slate-400">Updates skeletons live</span>
                   </div>
                 </div>
               )}
@@ -950,29 +1129,35 @@ module.exports = {
               {activeTab === "mentor" && (
                 <div className="flex flex-col h-[380px] justify-between">
                   {/* Message Thread */}
-                  <div className="overflow-y-auto space-y-3 pr-1 flex-1">
+                  <div className="overflow-y-auto overflow-x-hidden space-y-3 pr-1 flex-1 min-w-0">
                     {mentorMessages.map((msg) => (
                       <div
                         key={msg.id}
-                        className={`flex flex-col ${
-                          msg.role === "user" ? "items-end" : "items-start"
+                        className={`flex w-full min-w-0 ${
+                          msg.role === "user" ? "justify-end" : "justify-start"
                         }`}
                       >
                         <div
-                          className={`rounded-xl px-3 py-2 text-xs leading-relaxed max-w-[88%] ${
+                          className={`w-full max-w-[94%] sm:max-w-[88%] min-w-0 overflow-hidden break-words text-xs leading-relaxed ${
                             msg.role === "user"
-                              ? "bg-blue-600 text-white shadow-xs"
-                              : "bg-slate-100 text-slate-800 border border-slate-200/80"
+                              ? "whitespace-pre-wrap rounded-2xl rounded-tr-xs bg-blue-600 px-3.5 py-2 text-white shadow-sm"
+                              : "mentor-md rounded-2xl rounded-tl-xs border border-slate-200/80 bg-slate-50/90 p-3.5 text-slate-800 shadow-2xs"
                           }`}
                         >
-                          {msg.text}
+                          {msg.role === "user" ? (
+                            msg.text
+                          ) : (
+                            <Markdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeRaw]}>
+                              {formatMentorMarkdown(msg.text)}
+                            </Markdown>
+                          )}
                         </div>
                       </div>
                     ))}
                     {isMentorThinking && (
                       <div className="flex items-center gap-2 text-xs text-slate-500 italic p-1">
                         <Bot className="size-3.5 animate-spin text-blue-600" />
-                        <span>Evaluating design aesthetics...</span>
+                        <span>Evaluating design aesthetics against WCAG...</span>
                       </div>
                     )}
                     <div ref={chatEndRef} />
@@ -981,12 +1166,12 @@ module.exports = {
                   {/* Quick Design Prompts */}
                   <div className="pt-2 border-t border-slate-100 space-y-2">
                     <div className="flex gap-1.5 overflow-x-auto no-scrollbar py-0.5">
-                      {UI_QUICK_PROMPTS.slice(0, 2).map((q, i) => (
+                      {UI_QUICK_PROMPTS.map((q, i) => (
                         <button
                           key={i}
                           type="button"
                           onClick={() => handleSendMentorMessage(q)}
-                          className="shrink-0 text-[10px] px-2 py-1 rounded-full bg-slate-100 hover:bg-slate-200/70 text-slate-600 font-medium transition-colors"
+                          className="shrink-0 text-[10px] px-2.5 py-1 rounded-full bg-slate-100 hover:bg-blue-50 hover:text-blue-700 text-slate-600 font-medium transition-colors cursor-pointer border border-slate-200/60 shadow-2xs"
                         >
                           {q}
                         </button>
@@ -1002,14 +1187,14 @@ module.exports = {
                         onKeyDown={(e) => {
                           if (e.key === "Enter") handleSendMentorMessage();
                         }}
-                        placeholder="Ask UI/UX mentor about styling, colors, layout..."
+                        placeholder={`Ask UI/UX mentor about ${activePage.screen}...`}
                         className="flex-1 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-800 focus:outline-none focus:border-blue-500"
                       />
                       <button
                         type="button"
                         onClick={() => handleSendMentorMessage()}
                         disabled={!mentorInput.trim() || isMentorThinking}
-                        className="size-8 rounded-lg bg-blue-600 text-white grid place-items-center hover:bg-blue-700 disabled:opacity-50 transition-colors shadow-xs"
+                        className="size-8 rounded-lg bg-blue-600 text-white grid place-items-center hover:bg-blue-700 disabled:opacity-50 transition-colors shadow-xs cursor-pointer"
                       >
                         <Send className="size-3.5" />
                       </button>

@@ -7,6 +7,7 @@ export type TopicType =
   | "stack_tooling"
   | "mvp_features"
   | "challenges_viva"
+  | "ui_ux_design"
   | "general";
 
 export interface TopicMetadata {
@@ -52,6 +53,12 @@ export const TOPIC_METADATA: Record<TopicType, TopicMetadata> = {
     label: "Risks & Viva Defense",
     icon: "🛡️",
     hint: "Technical bottlenecks, edge cases & evaluator Q&A",
+  },
+  ui_ux_design: {
+    id: "ui_ux_design",
+    label: "UI/UX & Design Theme",
+    icon: "🎨",
+    hint: "Color psychology, contrast accessibility, typography & UI layout",
   },
   general: {
     id: "general",
@@ -177,7 +184,18 @@ export function buildBlueprintKnowledgeBase(
     `Viva Tip: Clearly articulate trade-offs made (e.g. why this database, how latency is managed, what failure modes exist).`,
   ].join("\n");
 
-  // 8. Chapter: General Guidance (~80 tokens)
+  // 8. Chapter: UI/UX & Visual Design (~100 tokens)
+  const activeTheme = (bp as any)?.activeTheme || {};
+  const chapterUiUx = [
+    `[UI/UX & DESIGN THEME SYSTEM]`,
+    `Active Aesthetic: ${activeTheme.name || "Modern Production UI"}`,
+    `Palette: Primary ${activeTheme.primary || "#0F172A"} | Secondary ${activeTheme.secondary || "#0284C7"} | Accent ${activeTheme.accent || "#10B981"} | Dark ${activeTheme.dark || "#020617"}`,
+    `Typography: ${activeTheme.font || "Inter / System Sans"}`,
+    `WCAG Contrast: ${activeTheme.wcagRatio ? `${activeTheme.wcagRatio}:1 (${activeTheme.wcagBadge || "AA"})` : "High Contrast compliant"}`,
+    `Target Evaluator Impression: Solves "${problem}" with enterprise-grade UI precision for ${bp.overview?.targetUsers || "evaluators and users"}.`,
+  ].join("\n");
+
+  // 9. Chapter: General Guidance (~80 tokens)
   const chapterGeneral = [
     `[GENERAL PROJECT GUIDANCE]`,
     `Summary: ${bp.overview?.summary || solution}`,
@@ -194,6 +212,7 @@ export function buildBlueprintKnowledgeBase(
       stack_tooling: chapterStack,
       mvp_features: chapterMvp,
       challenges_viva: chapterChallenges,
+      ui_ux_design: chapterUiUx,
       general: chapterGeneral,
     },
   };
@@ -205,6 +224,14 @@ export function buildBlueprintKnowledgeBase(
  */
 export function detectTopic(message: string, currentTopic: TopicType = "getting_started"): TopicType {
   const m = (message || "").toLowerCase();
+
+  // Explicit UI/UX & Design detection
+  if (
+    currentTopic === "ui_ux_design" ||
+    /\b(ui|ux|color|palette|contrast|wcag|font|typography|theme|styling|tailwind|css|layout|aesthetic|dark mode|light mode|button|visual|specimen)\b/.test(m)
+  ) {
+    return "ui_ux_design";
+  }
 
   // Database detection
   if (
@@ -264,23 +291,45 @@ export function getTopicPrompt(
   const chapter = kb.chapters[activeTopic] || kb.chapters.general;
   const meta = TOPIC_METADATA[activeTopic] || TOPIC_METADATA.general;
 
+  const isDesign = activeTopic === "ui_ux_design";
+
+  const structureSection = isDesign
+    ? `MANDATORY 3-PART STRUCTURE (EVERY ANSWER MUST USE THIS EXACT FORMAT):
+
+### 🎨 Visual & Contrast Verdict
+[1-2 clear, decisive sentences assessing the palette, WCAG contrast compliance, and typography fit for this project.]
+
+### 📐 Design System Rationale
+- **Color Psychology & Brand:** Why the primary and accent colors suit this specific project domain.
+- **Typography & Scanability:** How the heading/body pairing guides evaluators' eyes.
+
+### 🛠️ Recommended Styling Tweak
+🎯 **Tailwind / CSS Tweak:** [1 specific, actionable Tailwind class or component styling tweak to make the UI look production-grade.]
+
+> 💡 **Design Evaluator Tip:** [1 sentence explaining how to impress project evaluators with this visual identity.]`
+    : `MANDATORY 3-PART STRUCTURE (EVERY ANSWER MUST USE THIS EXACT FORMAT):
+
+### 🎯 Core Verdict
+[1-2 crisp, decisive sentences directly answering the student's exact query with zero fluff. Bold key terms.]
+
+### ⚙️ Technical Breakdown
+- **Architecture / Decision:** Concrete technical rationale tailored specifically to their project and skills.
+- **Implementation / Trade-off:** Practical engineering reason (e.g. latency, complexity, tooling, or state flow).
+
+### 🚀 Immediate Next Move
+🎯 **What to do next:** [1 immediate, specific command, code action, or schema step to execute now.]
+
+> 💡 **Supervisor / Viva Tip:** [1 sentence explaining how to confidently defend this choice in your project evaluation.]`;
+
   return `You are Yaduk, an expert AI Project Mentor and Systems Architect.
 
-CONVERSATION STYLE & LENGTH RULES:
-- Keep the response short, crisp, and laser-focused on the student's exact query.
-- Structure your response cleanly:
-  1. Direct Answer / Core Concept: 1-2 clear sentences.
-  2. Context & Rationale: 2-3 sentences explaining why it matters for their specific project architecture.
-  3. Actionable Suggestions / Next Steps: 2-3 bullet points.
-- FORMATTING FOR CHAT VIEWPORT:
-  - Do NOT generate complex multi-column markdown tables (e.g. | Col 1 | Col 2 |). Chat screens are narrow.
-  - Instead of tables, organize comparisons or stacks with clean bold subheaders and crisp bullet points:
-    ### Frontend: React + Next.js
-    - **Why it fits:** Matches your existing React familiarity and 15h/wk budget.
-    - **Key benefit:** Fast file-based routing and built-in API routes.
-  - Never output raw HTML tags (do NOT output <br>, <table>, <tr>, <div>, or <span>). Use standard markdown line breaks.
-- Avoid unsolicited long text, massive day-by-day schedules, or huge code dumps unless explicitly asked.
-- Keep overall response length concise (around 120-160 words).
+CONVERSATION & FORMATTING DIRECTIVES:
+- Keep answers high-signal, concise, and easy to scan (around 120-160 words total).
+- Follow the mandatory 3-part structure below without exception.
+- Do NOT output multi-column markdown tables (e.g. | Col 1 | Col 2 |). Chat screens are narrow.
+- Do NOT output raw HTML tags (never output <br>, <table>, <tr>, <div>, or <span>). Use clean markdown headings, bold labels, and bullet points.
+
+${structureSection}
 
 KNOWLEDGE BASE:
 ${kb.summaryAnchor}
@@ -289,5 +338,5 @@ ACTIVE TOPIC FOCUS: ${meta.icon} ${meta.label}
 ${chapter}
 
 CONVERSATION DIRECTIVE:
-Address the student's query specifically within "${meta.label}". Provide high-signal clarity and context with zero fluff.`;
+Address the student's query specifically within "${meta.label}". Deliver high-signal clarity and actionable direction with zero fluff.`;
 }
