@@ -2,7 +2,10 @@ import { createServerFn } from "@tanstack/react-start";
 import type { AuthUser } from "./types";
 
 function getBackendBaseUrl(): string {
-  return process.env["BACKEND_URL"]?.replace(/\/+$/, "") || "http://127.0.0.1:8000";
+  return (
+    process.env["BACKEND_URL"]?.replace(/\/+$/, "") ||
+    "http://yaduk-api-env.eba-dkrzgicw.us-east-1.elasticbeanstalk.com"
+  );
 }
 
 export type AuthResponseData = {

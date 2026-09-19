@@ -5,6 +5,7 @@ function getBackendCandidates(): string[] {
   if (process.env["BACKEND_URL"]) {
     candidates.push(process.env["BACKEND_URL"].replace(/\/+$/, ""));
   }
+  candidates.push("http://yaduk-api-env.eba-dkrzgicw.us-east-1.elasticbeanstalk.com");
   candidates.push("http://127.0.0.1:8000");
   return Array.from(new Set(candidates));
 }
