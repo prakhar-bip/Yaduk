@@ -36,16 +36,14 @@ export function BackendContractView({
   profile,
   selectedTheme,
   onBackToTheme,
-  onProceedToPrototype,
-  isGenerating = false,
+  onOpenMentor,
 }: {
   contract: BackendContractDoc;
   blueprint: Blueprint;
   profile: StudentProfile;
   selectedTheme?: string | undefined;
   onBackToTheme: () => void;
-  onProceedToPrototype: () => void;
-  isGenerating?: boolean | undefined;
+  onOpenMentor?: () => void;
 }) {
   const [activeTab, setActiveTab] = useState<ActiveTab>("matrix");
   const [copiedDdl, setCopiedDdl] = useState(false);
@@ -156,19 +154,10 @@ export function BackendContractView({
             <button
               type="button"
               onClick={handleDownloadMarkdown}
-              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 transition-all cursor-pointer shadow-2xs"
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold text-white bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-700 hover:opacity-95 active:scale-98 shadow-md transition-all cursor-pointer"
             >
               <Download className="size-3.5" />
-              <span>Export .md</span>
-            </button>
-            <button
-              type="button"
-              onClick={onProceedToPrototype}
-              disabled={isGenerating}
-              className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold text-white bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-700 hover:opacity-95 active:scale-98 shadow-md transition-all cursor-pointer disabled:opacity-50"
-            >
-              <Sparkles className="size-3.5" />
-              <span>{isGenerating ? "Forging Codebase..." : "Proceed to Code Generation →"}</span>
+              <span>Download BACKEND_SPEC.md</span>
             </button>
           </div>
         </div>
@@ -797,15 +786,27 @@ export function BackendContractView({
           <span>← Back to Theme Studio</span>
         </button>
 
-        <button
-          type="button"
-          onClick={onProceedToPrototype}
-          disabled={isGenerating}
-          className="inline-flex items-center gap-2 px-6 py-2.5 rounded-xl text-xs font-bold text-white bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-700 hover:opacity-95 active:scale-98 shadow-md transition-all cursor-pointer disabled:opacity-50"
-        >
-          <Sparkles className="size-3.5" />
-          <span>{isGenerating ? "Forging Codebase..." : "Proceed to Code Generation →"}</span>
-        </button>
+        <div className="flex items-center gap-3">
+          {onOpenMentor && (
+            <button
+              type="button"
+              onClick={onOpenMentor}
+              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-semibold border border-indigo-200 bg-indigo-50/80 text-indigo-700 hover:bg-indigo-100 transition-all cursor-pointer shadow-2xs"
+            >
+              <Sparkles className="size-3.5" />
+              <span>Discuss Architecture with Mentor</span>
+            </button>
+          )}
+
+          <button
+            type="button"
+            onClick={handleDownloadMarkdown}
+            className="inline-flex items-center gap-2 px-6 py-2.5 rounded-xl text-xs font-bold text-white bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-700 hover:opacity-95 active:scale-98 shadow-md transition-all cursor-pointer"
+          >
+            <Download className="size-3.5" />
+            <span>Export Complete Specification (.md)</span>
+          </button>
+        </div>
       </div>
     </div>
   );

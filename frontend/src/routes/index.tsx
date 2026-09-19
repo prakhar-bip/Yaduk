@@ -12,7 +12,6 @@ import { Mentor } from "@/components/quest/Mentor";
 import { MentorDock } from "@/components/quest/MentorDock";
 import { PlanChangeBar } from "@/components/quest/PlanChangeBar";
 import { ProfileCard } from "@/components/quest/ProfileCard";
-import { PrototypeSandbox } from "@/components/quest/PrototypeSandbox";
 import { ThemeSelection } from "@/components/quest/ThemeSelection";
 import { BackendContractView } from "@/components/quest/BackendContractView";
 import { QuestHud } from "@/components/quest/QuestHud";
@@ -31,7 +30,6 @@ import {
   generateBlueprint,
   generateBlueprintScrollFallback,
   generateIdeas,
-  generatePrototype,
   refineIdeas,
   summarizeBlueprint,
   updateBlueprint,
@@ -109,7 +107,7 @@ function LandingNavbar({
             <div className="flex items-center gap-2">
               <div className="flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs shadow-xs">
                 <span className="grid size-6 place-items-center rounded-full bg-blue-600 font-bold text-white text-xs shadow-xs">
-                  {user.fullName ? user.fullName[0].toUpperCase() : user.email[0].toUpperCase()}
+                  {user.fullName ? user.fullName[0]?.toUpperCase() : (user.email?.[0] || "U").toUpperCase()}
                 </span>
                 <span className="font-semibold text-slate-800 max-w-[120px] truncate sm:max-w-none">
                   {user.fullName || user.email.split("@")[0]}
@@ -220,7 +218,7 @@ function Intro({
 
         {/* Right Auth Column */}
         <div className="w-full">
-          <AuthCard onStartJourney={onStart} onAuthSuccess={onAuthSuccess} />
+          <AuthCard onStartJourney={onStart} {...(onAuthSuccess ? { onAuthSuccess } : {})} />
         </div>
       </div>
 
@@ -256,7 +254,7 @@ function Intro({
 
 function Home() {
   const { state, update, award, reset, hydrated } = useJourney();
-  const { user, isAuthenticated, isLoading } = useAuth();
+  const { user, isAuthenticated, isLoading, logout } = useAuth();
   const [authModalOpen, setAuthModalOpen] = useState(false);
   const [authModalTab, setAuthModalTab] = useState<"login" | "register">("login");
   const [busy, setBusy] = useState<string | null>(null);
@@ -340,7 +338,6 @@ function Home() {
   const doUpdateBlueprint = useServerFn(updateBlueprint);
   const doSummarize = useServerFn(summarizeBlueprint);
   const doGenerateBackendContract = useServerFn(generateBackendContract);
-  const doGeneratePrototype = useServerFn(generatePrototype);
 
   const selected = state.ideas.find((i) => i.id === state.selectedIdeaId) ?? null;
 
@@ -600,60 +597,35 @@ function Home() {
       return;
     }
     const theme = selectedTheme || state.selectedTheme || "neo-brutalism";
-    setBusy(`Synthesizing Backend Architecture & Database Contract for ${state.blueprint.title}...`);
+    
+    // 1. Immediately provision baseline contract and transition stage so user instantly sees the page
+    const immediateContract =
+      state.backendContract ||
+      generateBackendContractFallback(state.blueprint, effectiveProfile);
+
+    update({
+      backendContract: immediateContract,
+      profile: effectiveProfile,
+      selectedTheme: theme,
+      stage: "contract",
+    });
+    award(150, "engineer");
+    toast.success("Backend Architecture & System Contract ready!");
+
+    // 2. Asynchronously enrich with deep AI synthesis in background if needed
     try {
-      let contract: BackendContractDoc | null = null;
-      try {
-        contract = await doGenerateBackendContract({
-          data: { profile: effectiveProfile, blueprint: state.blueprint, theme },
-        });
-      } catch (err) {
-        console.warn("Backend contract generation error, falling back to local synthesizer:", err);
-        contract = generateBackendContractFallback(state.blueprint, effectiveProfile);
-      }
-
-      if (!contract) {
-        contract = generateBackendContractFallback(state.blueprint, effectiveProfile);
-      }
-
-      update({
-        backendContract: contract,
-        profile: effectiveProfile,
-        selectedTheme: theme,
-        stage: "contract",
-      });
-      award(150, "engineer");
-      toast.success("Backend Architecture & System Contract ready!");
-    } catch (e) {
-      fail(e);
-    } finally {
-      setBusy(null);
-    }
-  }
-
-  async function handleGeneratePrototype(selectedTheme?: string) {
-    if (!state.blueprint) {
-      toast.error("Please create a blueprint first before generating a prototype.");
-      return;
-    }
-    const theme = selectedTheme || state.selectedTheme || "neo-brutalism";
-    setBusy(`Manifesting your ${theme} software prototype & codebase with Yaduk AI...`);
-    try {
-      const prototype = await doGeneratePrototype({
+      const enriched = await doGenerateBackendContract({
         data: { profile: effectiveProfile, blueprint: state.blueprint, theme },
       });
-      update({
-        prototype,
-        profile: effectiveProfile,
-        selectedTheme: theme,
-        stage: "prototype",
-      });
-      award(350, "builder");
-      toast.success(`Interactive prototype in ${theme} style ready!`);
-    } catch (e) {
-      fail(e);
-    } finally {
-      setBusy(null);
+      if (enriched?.apiRoutes && enriched.apiRoutes.length > 0) {
+        update({
+          backendContract: enriched,
+          profile: effectiveProfile,
+          selectedTheme: theme,
+        });
+      }
+    } catch (err) {
+      console.warn("Backend contract AI enrichment completed with baseline contract:", err);
     }
   }
 
@@ -717,25 +689,6 @@ function Home() {
       }
       setBusy(null);
       update({ stage: "contract" });
-      return;
-    }
-    if (targetStage === "prototype") {
-      if (!state.prototype) {
-        if (state.backendContract) {
-          setBusy(null);
-          update({ stage: "contract" });
-          toast.info("Inspect your backend architecture contract first before generating code.");
-        } else if (state.blueprint) {
-          setBusy(null);
-          update({ stage: "theme" });
-          toast.info("Select a design theme first to generate your contract.");
-        } else {
-          toast.info("Please create your project blueprint first.");
-        }
-        return;
-      }
-      setBusy(null);
-      update({ stage: "prototype" });
       return;
     }
     update({ stage: targetStage });
@@ -886,10 +839,13 @@ function Home() {
           </div>
         )}
 
-        {showQuest && !busy && state.stage === "contract" && state.backendContract && state.blueprint && (
+        {showQuest && !busy && state.stage === "contract" && state.blueprint && (
           <div className="space-y-6">
             <BackendContractView
-              contract={state.backendContract}
+              contract={
+                state.backendContract ||
+                generateBackendContractFallback(state.blueprint, effectiveProfile)
+              }
               blueprint={state.blueprint}
               profile={state.profile || effectiveProfile}
               selectedTheme={state.selectedTheme}
@@ -897,36 +853,7 @@ function Home() {
                 setBusy(null);
                 update({ stage: "theme" });
               }}
-              onProceedToPrototype={() => {
-                void handleGeneratePrototype(state.selectedTheme);
-              }}
-              isGenerating={Boolean(busy)}
-            />
-            <MentorDock
-              profile={state.profile || effectiveProfile}
-              blueprint={state.blueprint}
-              askSeed={askSeed}
-              open={dockOpen}
-              onToggle={setDockOpen}
-              onAsked={() => award(40, "apprentice")}
-            />
-          </div>
-        )}
-
-        {showQuest && !busy && state.stage === "prototype" && state.prototype && state.blueprint && (
-          <div className="space-y-6">
-            <PrototypeSandbox
-              prototype={state.prototype}
-              blueprint={state.blueprint}
-              profile={state.profile || effectiveProfile}
-              onBackToBlueprint={() => {
-                setBusy(null);
-                update({ stage: "blueprint" });
-              }}
-              onSelectNewTheme={() => {
-                setBusy(null);
-                update({ stage: "theme" });
-              }}
+              onOpenMentor={() => setDockOpen(true)}
             />
             <MentorDock
               profile={state.profile || effectiveProfile}

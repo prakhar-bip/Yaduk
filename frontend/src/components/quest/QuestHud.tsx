@@ -10,8 +10,7 @@ const STAGES: { key: Stage; label: string }[] = [
   { key: "feasibility", label: "Reality Check" },
   { key: "blueprint", label: "System Blueprint" },
   { key: "theme", label: "Theme" },
-  { key: "contract", label: "Backend & DB Spec" },
-  { key: "prototype", label: "Prototype" },
+  { key: "contract", label: "Backend Architecture & DB" },
 ];
 
 export function QuestHud({
@@ -55,7 +54,7 @@ export function QuestHud({
           {user && (
             <div className="flex items-center gap-2 rounded-xl border border-slate-200/90 bg-white px-3 py-1.5 text-xs shadow-2xs">
               <span className="grid size-5 place-items-center rounded-lg bg-gradient-to-tr from-blue-600 to-indigo-600 text-[10px] font-bold text-white shadow-xs">
-                {user.fullName ? user.fullName[0].toUpperCase() : user.email[0].toUpperCase()}
+                {user.fullName ? user.fullName[0]?.toUpperCase() : (user.email?.[0] || "U").toUpperCase()}
               </span>
               <span className="max-w-[120px] truncate font-semibold text-slate-800 sm:max-w-[160px]">
                 {user.fullName || user.email.split("@")[0]}

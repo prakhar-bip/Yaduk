@@ -98,7 +98,6 @@ export type Stage =
   | "blueprint"
   | "theme"
   | "contract"
-  | "prototype"
   | "mentor";
 
 export type PrototypeMetric = {
@@ -275,10 +274,10 @@ export type JourneyState = {
   feedbackLog: string[];
   feasibility: Feasibility | null;
   blueprint: Blueprint | null;
-  selectedTheme?: string;
-  backendContract?: BackendContractDoc | null;
+  selectedTheme?: string | undefined;
+  backendContract?: BackendContractDoc | null | undefined;
   scroll: QuestScroll | null;
-  prototype: PrototypeData | null;
+  prototype?: PrototypeData | null | undefined;
   changeLog: string[];
   xp: number;
   badges: string[];
@@ -309,7 +308,6 @@ export const BADGES: Record<string, { label: string; hint: string }> = {
   architect: { label: "Plan", hint: "Unlocked your full project plan" },
   stylist: { label: "Theme", hint: "Crafted the visual identity of your software" },
   engineer: { label: "Contract", hint: "Inspected and locked the backend API & database contracts" },
-  builder: { label: "Prototype", hint: "Manifested your interactive software prototype" },
   apprentice: { label: "Mentor", hint: "Talked things through with your mentor" },
   shipwright: { label: "Updated", hint: "Updated the plan after a mentor chat" },
   loremaster: { label: "Summary", hint: "Created a short summary of your plan" },
