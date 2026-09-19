@@ -7,24 +7,122 @@ import { TOPIC_METADATA, type TopicType } from "@/lib/mentor-knowledge";
 import { YadukLogo } from "./YadukLogo";
 import { Send, Sparkles, X, RotateCcw, BookOpen } from "lucide-react";
 
+function tryParseJson(str: string): any {
+  try {
+    return JSON.parse(str);
+  } catch {
+    return null;
+  }
+}
+
+function unwrapJsonIfPresent(raw: string): string {
+  if (!raw) return "";
+  let cleaned = raw.trim();
+
+  // 1. Strip markdown code block wrapper ```json ... ``` or ```markdown ... ``` or ``` ... ```
+  const codeBlockMatch = cleaned.match(/^```(?:json|markdown)?\s*([\s\S]*?)\s*```$/i);
+  if (codeBlockMatch) {
+    cleaned = codeBlockMatch[1].trim();
+  }
+
+  // 2. Check if string looks like JSON object or array
+  if (
+    (cleaned.startsWith("{") && cleaned.endsWith("}")) ||
+    (cleaned.startsWith("[") && cleaned.endsWith("]"))
+  ) {
+    const parsed = tryParseJson(cleaned);
+    if (parsed) {
+      if (typeof parsed === "string") return parsed;
+      if (Array.isArray(parsed)) {
+        return parsed
+          .map((item) => (typeof item === "string" ? item : JSON.stringify(item)))
+          .join("\n\n");
+      }
+      if (typeof parsed === "object" && parsed !== null) {
+        // Direct single text keys
+        const primaryKeys = ["text", "content", "response", "message", "answer", "reply", "output"];
+        for (const k of primaryKeys) {
+          if (typeof parsed[k] === "string" && parsed[k].trim().length > 0) {
+            return parsed[k].trim();
+          }
+        }
+
+        // Key-value pairs dictionary
+        const sections: string[] = [];
+        for (const [k, v] of Object.entries(parsed)) {
+          if (!v) continue;
+          const cleanKey = k
+            .replace(/[_-]+/g, " ")
+            .replace(/\b\w/g, (c) => c.toUpperCase());
+          let valStr = "";
+          if (Array.isArray(v)) {
+            valStr = v
+              .map((item) => `- ${typeof item === "string" ? item : JSON.stringify(item)}`)
+              .join("\n");
+          } else if (typeof v === "object") {
+            valStr = Object.entries(v)
+              .map(([subK, subV]) => `- **${subK}:** ${subV}`)
+              .join("\n");
+          } else {
+            valStr = String(v);
+          }
+          sections.push(`### ${cleanKey}\n${valStr}`);
+        }
+        if (sections.length > 0) {
+          return sections.join("\n\n");
+        }
+      }
+    }
+  }
+
+  // 3. If raw string has escaped newlines "\n" instead of actual linebreaks
+  if (cleaned.includes("\\n") && !cleaned.includes("\n")) {
+    cleaned = cleaned.replace(/\\n/g, "\n").replace(/\\t/g, "  ").replace(/\\"/g, '"');
+  }
+
+  // 4. Fallback: if string starts with { and ends with } but failed JSON.parse, extract key-value lines
+  if (cleaned.startsWith("{") && cleaned.endsWith("}")) {
+    const inner = cleaned.slice(1, -1).trim();
+    const parsedLines = inner
+      .split(/\n|,(?=\s*["'])/)
+      .map((line) => {
+        const match = line.match(/^\s*["']?([^"':]+)["']?\s*:\s*["']?([\s\S]*?)["']?\s*$/);
+        if (match) {
+          const key = match[1].trim().replace(/[_-]+/g, " ");
+          const val = match[2].trim().replace(/\\n/g, "\n").replace(/^["']|["']$/g, "");
+          return `### ${key}\n${val}`;
+        }
+        return line.trim();
+      })
+      .filter(Boolean);
+    if (parsedLines.length > 0) {
+      return parsedLines.join("\n\n");
+    }
+  }
+
+  return cleaned;
+}
+
 export function formatMentorMarkdown(raw: string): string {
   if (!raw) return "";
-  let text = raw;
+  let text = unwrapJsonIfPresent(raw);
 
-  // 1. Fix collapsed table rows where newlines were omitted between rows
-  // e.g. "| header | |---| | data |" -> "| header |\n|---|\n| data |"
-  text = text.replace(/\|\s*\|\s*/g, "|\n| ");
-
-  // 2. Normalize <br> or <br/> tags to valid self-closing <br />
+  // 1. Normalize <br> or <br/> tags to valid self-closing <br />
   text = text.replace(/<br\s*\/?>/gi, "<br />");
 
-  // 3. Ensure table blocks are preceded by a blank line for CommonMark parsing
-  text = text.replace(/([^\n])\n(\|[^\n]+\|)/g, "$1\n\n$2");
-
-  // 4. Ensure headers have space after #
+  // 2. Ensure headings have space after #
   text = text.replace(/^(\#{1,6})([^\s\#])/gm, "$1 $2");
 
-  return text;
+  // 3. Ensure headings are preceded by a blank line for CommonMark parsing
+  text = text.replace(/([^\n])\n(#{1,6}\s)/g, "$1\n\n$2");
+
+  // 4. Fix collapsed table rows where newlines were omitted between rows
+  text = text.replace(/\|\s*\|\s*/g, "|\n| ");
+
+  // 5. Ensure table blocks are preceded by a blank line for CommonMark parsing
+  text = text.replace(/([^\n])\n(\|[^\n]+\|)/g, "$1\n\n$2");
+
+  return text.trim();
 }
 
 type ChatMessage = {

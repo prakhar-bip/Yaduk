@@ -254,7 +254,7 @@ export function ThemeSelection({
               },
             },
           },
-          currentTopic: "architecture",
+          currentTopic: "ui_ux_design",
           history: mentorMessages.slice(-6).map((m) => ({
             role: m.role,
             content: m.text,
