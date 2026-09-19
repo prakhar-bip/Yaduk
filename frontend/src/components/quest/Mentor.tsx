@@ -1,10 +1,15 @@
 import Markdown from "react-markdown";
-import { useChat } from "@ai-sdk/react";
-import { DefaultChatTransport } from "ai";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { Blueprint, StudentProfile } from "@/lib/types";
 import { YadukLogo } from "./YadukLogo";
-import { Send, Sparkles, X, Bot } from "lucide-react";
+import { Send, Sparkles, X, RotateCcw } from "lucide-react";
+import { askMentorChat } from "@/lib/quest.functions";
+
+type ChatMessage = {
+  id: string;
+  role: "user" | "assistant";
+  text: string;
+};
 
 const PROMPTS = [
   "Where should I start coding first?",
@@ -29,16 +34,9 @@ export function Mentor({
   compact?: boolean;
   onClose?: () => void;
 }) {
-  const transport = useMemo(
-    () =>
-      new DefaultChatTransport({
-        api: "/api/chat",
-        body: { context: { profile, blueprint } },
-      }),
-    [profile, blueprint],
-  );
-
-  const { messages, sendMessage, status, error } = useChat({ transport });
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [input, setInput] = useState("");
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const endRef = useRef<HTMLDivElement>(null);
@@ -46,33 +44,77 @@ export function Mentor({
 
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
-  }, [messages, status]);
+  }, [messages, busy]);
 
   useEffect(() => {
-    if (status === "ready") inputRef.current?.focus();
-  }, [status]);
+    if (!busy) inputRef.current?.focus();
+  }, [busy]);
 
-  const busy = status === "submitted" || status === "streaming";
-
-  const send = (text: string) => {
-    if (!text.trim() || busy) return;
-    void sendMessage({ text: text.trim() });
+  const send = async (text: string) => {
+    const trimmed = text.trim();
+    if (!trimmed || busy) return;
     setInput("");
+    setError(null);
+
+    const userMsg: ChatMessage = {
+      id: `user-${Date.now()}`,
+      role: "user",
+      text: trimmed,
+    };
+
+    const nextMessages = [...messages, userMsg];
+    setMessages(nextMessages);
+    setBusy(true);
     onAsked?.();
+
+    try {
+      const history = nextMessages.map((m) => ({
+        role: m.role === "user" ? "user" : "assistant",
+        content: m.text,
+      }));
+
+      const res = await askMentorChat({
+        data: {
+          message: trimmed,
+          context: { profile, blueprint },
+          history: history.slice(-8),
+        },
+      });
+
+      const mentorMsg: ChatMessage = {
+        id: `mentor-${Date.now()}`,
+        role: "assistant",
+        text: res.text,
+      };
+      setMessages((prev) => [...prev, mentorMsg]);
+    } catch (err: any) {
+      console.error("Mentor chat error:", err);
+      setError("Mentor was momentarily busy. Click retry to try again.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleRetry = () => {
+    const lastUserMsg = [...messages].reverse().find((m) => m.role === "user");
+    if (lastUserMsg) {
+      void send(lastUserMsg.text);
+    }
   };
 
   useEffect(() => {
     if (!askSeed || askSeed.n === seenSeed.current) return;
     seenSeed.current = askSeed.n;
-    send(askSeed.text);
+    void send(askSeed.text);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [askSeed]);
 
-  const textOf = (m: (typeof messages)[number]) =>
-    m.parts.map((p) => (p.type === "text" ? p.text : "")).join("");
-
   return (
-    <section className={`panel flex flex-col overflow-hidden border border-slate-200/80 bg-white shadow-xl shadow-blue-500/5 ${compact ? "h-[30rem]" : "h-[40rem] lg:h-[46rem]"}`}>
+    <section
+      className={`panel flex flex-col overflow-hidden border border-slate-200/80 bg-white shadow-xl shadow-blue-500/5 ${
+        compact ? "h-[30rem]" : "h-[40rem] lg:h-[46rem]"
+      }`}
+    >
       {/* Header */}
       <div className="flex items-center gap-3 border-b border-slate-100 bg-gradient-to-r from-blue-50/50 to-indigo-50/40 px-5 py-3.5">
         <YadukLogo size={32} />
@@ -128,12 +170,12 @@ export function Mentor({
                   : "mentor-md rounded-2xl rounded-tl-xs border border-slate-200/80 bg-slate-50/70 p-4 text-slate-800 shadow-2xs"
               }`}
             >
-              {m.role === "user" ? textOf(m) : <Markdown>{textOf(m)}</Markdown>}
+              {m.role === "user" ? m.text : <Markdown>{m.text}</Markdown>}
             </div>
           </div>
         ))}
 
-        {status === "submitted" && (
+        {busy && (
           <div className="flex items-center gap-2 text-xs text-slate-500 font-medium">
             <div className="size-2 rounded-full bg-blue-600 animate-bounce" />
             <div className="size-2 rounded-full bg-indigo-600 animate-bounce delay-100" />
@@ -143,8 +185,15 @@ export function Mentor({
         )}
 
         {error && (
-          <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-xs text-red-600">
-            Connection dropped. Please retry sending your query.
+          <div className="flex items-center justify-between gap-3 rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">
+            <span>{error}</span>
+            <button
+              onClick={handleRetry}
+              className="flex items-center gap-1 font-semibold text-amber-900 underline hover:no-underline cursor-pointer"
+            >
+              <RotateCcw className="size-3" />
+              Retry
+            </button>
           </div>
         )}
         <div ref={endRef} />
