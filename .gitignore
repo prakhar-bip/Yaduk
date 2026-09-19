@@ -12,6 +12,7 @@ dist/
 .output/
 .nitro/
 .wrangler/
+.amplify-hosting/
 
 # Environment files
 .env

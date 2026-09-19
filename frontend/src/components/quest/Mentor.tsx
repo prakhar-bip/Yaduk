@@ -3,7 +3,6 @@ import { useEffect, useRef, useState } from "react";
 import type { Blueprint, StudentProfile } from "@/lib/types";
 import { YadukLogo } from "./YadukLogo";
 import { Send, Sparkles, X, RotateCcw } from "lucide-react";
-import { askMentorChat } from "@/lib/quest.functions";
 
 type ChatMessage = {
   id: string;
@@ -73,18 +72,29 @@ export function Mentor({
         content: m.text,
       }));
 
-      const res = await askMentorChat({
-        data: {
+      const res = await fetch("/api/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
           message: trimmed,
           context: { profile, blueprint },
           history: history.slice(-8),
-        },
+        }),
       });
+
+      if (!res.ok) {
+        throw new Error(`Mentor request failed: ${res.status}`);
+      }
+
+      const data = await res.json();
+      if (!data.text) {
+        throw new Error("No text received from mentor");
+      }
 
       const mentorMsg: ChatMessage = {
         id: `mentor-${Date.now()}`,
         role: "assistant",
-        text: res.text,
+        text: data.text,
       };
       setMessages((prev) => [...prev, mentorMsg]);
     } catch (err: any) {
