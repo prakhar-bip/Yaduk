@@ -20,7 +20,7 @@ export type AuthResponseData = {
 };
 
 export const serverRegister = createServerFn({ method: "POST" })
-  .validator((data: { email: string; password: string; fullName?: string }) => data)
+  .validator((data: { email: string; password: string; fullName?: string | undefined }) => data)
   .handler(async ({ data }) => {
     const base = getBackendBaseUrl();
     const res = await fetch(`${base}/api/auth/register`, {
@@ -88,7 +88,7 @@ export const serverFetchMe = createServerFn({ method: "POST" })
 export async function apiRegister(
   email: string,
   password: string,
-  fullName?: string
+  fullName?: string | undefined
 ): Promise<{ user: AuthUser; token: string }> {
   try {
     const data = await serverRegister({ data: { email, password, fullName } });
@@ -97,7 +97,7 @@ export async function apiRegister(
       user: {
         id: data.user.id,
         email: data.user.email,
-        fullName: data.user.full_name || data.user.email.split("@")[0],
+        fullName: data.user.full_name || data.user.email.split("@")[0] || data.user.email,
         createdAt: data.user.created_at,
       },
     };
@@ -116,7 +116,7 @@ export async function apiRegister(
         user: {
           id: `local_${Date.now()}`,
           email: email.trim().toLowerCase(),
-          fullName: fullName?.trim() || email.split("@")[0],
+          fullName: fullName?.trim() || email.split("@")[0] || email,
         },
       };
     }
@@ -135,7 +135,7 @@ export async function apiLogin(
       user: {
         id: data.user.id,
         email: data.user.email,
-        fullName: data.user.full_name || data.user.email.split("@")[0],
+        fullName: data.user.full_name || data.user.email.split("@")[0] || data.user.email,
         createdAt: data.user.created_at,
       },
     };
@@ -153,7 +153,7 @@ export async function apiLogin(
         user: {
           id: `local_${Date.now()}`,
           email: email.trim().toLowerCase(),
-          fullName: email.split("@")[0],
+          fullName: email.split("@")[0] || email,
         },
       };
     }
@@ -179,7 +179,7 @@ export async function apiFetchMe(
       user: {
         id: res.user.id,
         email: res.user.email,
-        fullName: res.user.full_name || res.user.email.split("@")[0],
+        fullName: res.user.full_name || res.user.email.split("@")[0] || res.user.email,
         createdAt: res.user.created_at,
       },
     };

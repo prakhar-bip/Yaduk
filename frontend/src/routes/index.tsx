@@ -796,11 +796,11 @@ function Home() {
             <BlueprintView
               b={state.blueprint}
               changeLog={state.changeLog}
-              onGeneratePrototype={() => {
+              onProceedToTheme={() => {
                 setBusy(null);
                 update({ stage: "theme" });
               }}
-              isGeneratingPrototype={Boolean(busy)}
+              isProceedingToTheme={Boolean(busy)}
             />
             <MentorDock
               profile={state.profile || effectiveProfile}
@@ -906,8 +906,8 @@ function Home() {
               <BlueprintView
                 b={state.blueprint}
                 changeLog={state.changeLog}
-                onGeneratePrototype={() => update({ stage: "theme" })}
-                isGeneratingPrototype={Boolean(busy)}
+                onProceedToTheme={() => update({ stage: "theme" })}
+                isProceedingToTheme={Boolean(busy)}
               />
             </div>
             <div className="order-1 lg:order-2 lg:sticky lg:top-36 lg:h-fit">

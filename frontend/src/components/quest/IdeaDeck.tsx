@@ -181,12 +181,12 @@ export function IdeaCard({
             <span className="text-[9px] font-bold uppercase tracking-wider text-slate-400 mr-1 hidden sm:inline">
               Refine:
             </span>
-            {[
+            {([
               ["Similar", "give me similar ideas"],
               ["Advanced", "make it more advanced"],
               ["Simpler", "give me a simpler version"],
               ["New Domain", "change the project domain"],
-            ].map(([label, action]) => (
+            ] as const).map(([label, action]) => (
               <button
                 key={label}
                 type="button"

@@ -21,7 +21,7 @@ function unwrapJsonIfPresent(raw: string): string {
 
   // 1. Strip markdown code block wrapper ```json ... ``` or ```markdown ... ``` or ``` ... ```
   const codeBlockMatch = cleaned.match(/^```(?:json|markdown)?\s*([\s\S]*?)\s*```$/i);
-  if (codeBlockMatch) {
+  if (codeBlockMatch && codeBlockMatch[1] !== undefined) {
     cleaned = codeBlockMatch[1].trim();
   }
 
@@ -87,7 +87,7 @@ function unwrapJsonIfPresent(raw: string): string {
       .split(/\n|,(?=\s*["'])/)
       .map((line) => {
         const match = line.match(/^\s*["']?([^"':]+)["']?\s*:\s*["']?([\s\S]*?)["']?\s*$/);
-        if (match) {
+        if (match && match[1] !== undefined && match[2] !== undefined) {
           const key = match[1].trim().replace(/[_-]+/g, " ");
           const val = match[2].trim().replace(/\\n/g, "\n").replace(/^["']|["']$/g, "");
           return `### ${key}\n${val}`;

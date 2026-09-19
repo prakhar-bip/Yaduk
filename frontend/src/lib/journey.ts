@@ -74,7 +74,8 @@ export function useJourney() {
   const reset = useCallback(() => {
     try {
       window.localStorage.removeItem(KEY);
-      window.localStorage.removeItem(LEGACY_KEY);
+      window.localStorage.removeItem(LEGACY_KEY_SARTHI);
+      window.localStorage.removeItem(LEGACY_KEY_QUESTLINE);
     } catch {
       /* ignore */
     }

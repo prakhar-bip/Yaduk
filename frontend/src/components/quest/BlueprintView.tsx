@@ -34,13 +34,13 @@ function Section({
 export function BlueprintView({
   b,
   changeLog = [],
-  onGeneratePrototype,
-  isGeneratingPrototype = false,
+  onProceedToTheme,
+  isProceedingToTheme = false,
 }: {
   b: Blueprint;
   changeLog?: string[];
-  onGeneratePrototype?: () => void;
-  isGeneratingPrototype?: boolean;
+  onProceedToTheme?: () => void;
+  isProceedingToTheme?: boolean;
 }) {
   const overview = b?.overview || {
     summary: "",
@@ -377,44 +377,44 @@ export function BlueprintView({
         </Section>
       )}
 
-      {/* Prototype Forge CTA Banner */}
-      {onGeneratePrototype && (
+      {/* Theme Selection & Backend Contract CTA Banner */}
+      {onProceedToTheme && (
         <div className="panel q-rise rounded-3xl border border-blue-200/80 bg-gradient-to-r from-blue-50/70 via-white to-indigo-50/70 p-6 sm:p-10 text-center space-y-4 shadow-lg shadow-blue-500/5">
           <span className="inline-flex items-center gap-1.5 rounded-full bg-blue-100 border border-blue-200 px-3 py-1 font-mono text-[10px] font-bold text-blue-700 uppercase tracking-wider">
             <Sparkles className="size-3 text-blue-600" />
-            Next Phase: Prototype, GitHub & StackBlitz Forge
+            Next Phase: Theme Selection & Backend Architecture
           </span>
           <h3 className="font-display text-2xl sm:text-3xl font-bold tracking-tight text-slate-900">
-            Ready to select a visual theme and forge your workspace?
+            Ready to select a visual theme and inspect backend contracts?
           </h3>
           <p className="mx-auto max-w-xl text-xs sm:text-sm text-slate-600 leading-relaxed">
-            Yaduk AI will generate an interactive live UI mockup and multi-file starter repository with instant 1-click launch in <strong>StackBlitz WebContainer</strong> or direct push to <strong>GitHub</strong>.
+            Choose typography, color palettes, and visual design styles for your software. Immediately after confirming your theme, Yaduk will inspect your blueprint and generate the complete <strong>Backend Architecture, REST APIs & SQL Database Contract</strong>.
           </p>
 
           <div className="flex flex-wrap justify-center gap-2 pt-1">
             <span className="inline-flex items-center gap-1.5 rounded-full bg-white border border-slate-200 px-3 py-1 text-xs font-semibold text-slate-700 shadow-2xs">
               <Palette className="size-3.5 text-blue-600" />
-              <span>Multi-Theme UI Sandbox</span>
+              <span>Design System & Theming</span>
             </span>
-            <span className="inline-flex items-center gap-1.5 rounded-full bg-white border border-amber-200 px-3 py-1 text-xs font-semibold text-amber-800 shadow-2xs">
-              <Zap className="size-3.5 text-amber-500" />
-              <span>StackBlitz 1-Click Launch</span>
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-white border border-blue-200 px-3 py-1 text-xs font-semibold text-blue-800 shadow-2xs">
+              <Workflow className="size-3.5 text-blue-600" />
+              <span>REST API Endpoints & Routes</span>
             </span>
             <span className="inline-flex items-center gap-1.5 rounded-full bg-white border border-slate-300 px-3 py-1 text-xs font-semibold text-slate-800 shadow-2xs">
-              <Github className="size-3.5 text-slate-900" />
-              <span>Direct GitHub Push & CI/CD</span>
+              <Layers className="size-3.5 text-slate-900" />
+              <span>SQL DDL & Database Architecture</span>
             </span>
           </div>
 
           <div className="pt-2 flex flex-wrap justify-center gap-3">
             <button
               type="button"
-              onClick={onGeneratePrototype}
-              disabled={isGeneratingPrototype}
+              onClick={onProceedToTheme}
+              disabled={isProceedingToTheme}
               className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-5 py-2.5 text-xs sm:text-sm font-bold text-white shadow-md shadow-blue-500/25 transition-all hover:bg-blue-700 hover:shadow-lg hover:shadow-blue-500/30 hover:-translate-y-0.5 cursor-pointer disabled:opacity-50"
             >
               <Palette className="size-4" />
-              <span>{isGeneratingPrototype ? "Manifesting Prototype with Yaduk AI..." : "Select Theme & Build Prototype →"}</span>
+              <span>{isProceedingToTheme ? "Loading Design Studio..." : "Select Theme & Design System →"}</span>
             </button>
           </div>
         </div>

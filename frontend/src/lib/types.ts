@@ -100,104 +100,6 @@ export type Stage =
   | "contract"
   | "mentor";
 
-export type PrototypeMetric = {
-  label: string;
-  value: string;
-  change?: string;
-};
-
-export type PrototypeAction = {
-  id: string;
-  label: string;
-  description: string;
-  mockResponse: string;
-};
-
-export type PrototypeScreen = {
-  id: string;
-  title: string;
-  subtitle: string;
-  iconName?: string;
-  metrics?: PrototypeMetric[];
-  inputForm?: {
-    title: string;
-    description: string;
-    fields: {
-      name: string;
-      label: string;
-      placeholder: string;
-      type: "text" | "number" | "select" | "textarea";
-      options?: string[];
-    }[];
-    submitLabel: string;
-    successMessage: string;
-  };
-  sampleItems?: {
-    title: string;
-    category: string;
-    status: string;
-    detail: string;
-  }[];
-  actions?: PrototypeAction[];
-};
-
-export type PrototypeFile = {
-  path: string;
-  language: string;
-  description: string;
-  code: string;
-};
-
-export type ApiEndpointContract = {
-  method: "GET" | "POST" | "PUT" | "DELETE" | "PATCH";
-  path: string;
-  summary: string;
-  requestBody?: string;
-  responseBody?: string;
-};
-
-export type ProductionBatchTarget = {
-  path: string;
-  language: string;
-  purpose: string;
-};
-
-export type ProductionBatch = {
-  id: string;
-  layerName: string;
-  description: string;
-  targetFiles: ProductionBatchTarget[];
-};
-
-export type ProductionManifest = {
-  title: string;
-  description: string;
-  databaseContract: string;
-  apiContract: ApiEndpointContract[];
-  envContract: string[];
-  extraFrontendPackages?: string[];
-  extraBackendPackages?: string[];
-  batches: ProductionBatch[];
-};
-
-export type ProductionCodebase = {
-  manifest: ProductionManifest;
-  files: PrototypeFile[];
-  completedBatchIds: string[];
-  isGenerating?: boolean;
-  currentBatchIndex?: number;
-};
-
-export type PrototypeData = {
-  title: string;
-  tagline: string;
-  architectureSummary: string;
-  theme?: string;
-  screens: PrototypeScreen[];
-  codeFiles: PrototypeFile[];
-  runInstructions: string[];
-  productionCodebase?: ProductionCodebase;
-};
 
 export type ApiRouteSpec = {
   method: "GET" | "POST" | "PUT" | "DELETE" | "PATCH";
@@ -277,7 +179,6 @@ export type JourneyState = {
   selectedTheme?: string | undefined;
   backendContract?: BackendContractDoc | null | undefined;
   scroll: QuestScroll | null;
-  prototype?: PrototypeData | null | undefined;
   changeLog: string[];
   xp: number;
   badges: string[];
@@ -294,7 +195,6 @@ export const emptyJourney: JourneyState = {
   selectedTheme: undefined,
   backendContract: null,
   scroll: null,
-  prototype: null,
   changeLog: [],
   xp: 0,
   badges: [],
@@ -332,6 +232,6 @@ export type AuthUser = {
   id: number | string;
   email: string;
   fullName: string;
-  isGuest?: boolean;
-  createdAt?: string;
+  isGuest?: boolean | undefined;
+  createdAt?: string | undefined;
 };

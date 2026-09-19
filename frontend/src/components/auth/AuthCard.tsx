@@ -83,7 +83,7 @@ export function AuthCard({ onStartJourney, onAuthSuccess, className = "" }: Auth
       <div className={`panel q-pop rounded-3xl border border-slate-200/80 bg-white/95 p-6 sm:p-7 shadow-xl shadow-blue-500/5 ${className}`}>
         <div className="flex items-center gap-3.5 border-b border-slate-100 pb-4">
           <div className="flex size-12 items-center justify-center rounded-2xl bg-gradient-to-tr from-blue-600 to-indigo-600 text-white font-display text-lg font-bold shadow-md shadow-blue-500/20">
-            {user.fullName ? user.fullName[0].toUpperCase() : user.email[0].toUpperCase()}
+            {user.fullName ? user.fullName.charAt(0).toUpperCase() : user.email.charAt(0).toUpperCase()}
           </div>
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2">
