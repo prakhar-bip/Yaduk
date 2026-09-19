@@ -37,27 +37,26 @@ export const Route = createFileRoute("/api/chat")({
             return new Response("Messages are required", { status: 400 });
           }
 
-          const openrouterKey = process.env["OPENROUTER_API_KEY"] || "";
-          const groqKey = process.env["GROQ_API_KEY"] || process.env["NVIDIA_API_KEY"] || "";
+          const nvidiaKey = process.env["NVIDIA_API_KEY"] || "";
+          const groqKey = process.env["GROQ_API_KEY"] || "";
 
-          const useOpenRouter = Boolean(openrouterKey);
-          const baseURL = useOpenRouter
-            ? (process.env["OPENROUTER_BASE_URL"] || "https://openrouter.ai/api/v1")
+          const useNvidia = Boolean(nvidiaKey);
+          const baseURL = useNvidia
+            ? (process.env["NVIDIA_BASE_URL"] || "https://integrate.api.nvidia.com/v1")
             : (process.env["GROQ_BASE_URL"] || "https://api.groq.com/openai/v1");
 
-          const apiKey = useOpenRouter ? openrouterKey : groqKey;
-          const modelName = useOpenRouter
-            ? (process.env["OPENROUTER_MODEL"] || "nvidia/nemotron-3-ultra-550b-a55b:free")
+          const apiKey = useNvidia ? nvidiaKey : groqKey;
+          const modelName = useNvidia
+            ? (process.env["NVIDIA_MODEL"] || "nvidia/nemotron-3-ultra-550b-a55b")
             : (process.env["GROQ_MODEL"] || "openai/gpt-oss-120b");
 
-          const providerName = useOpenRouter ? "openrouter" : "groq";
+          const providerName = useNvidia ? "nvidia" : "groq";
 
           const provider = createOpenAICompatible({
             name: providerName,
             baseURL,
             headers: {
               Authorization: `Bearer ${apiKey}`,
-              ...(useOpenRouter ? { "HTTP-Referer": "https://yaduk.ai", "X-Title": "Yaduk AI" } : {}),
             },
           });
 

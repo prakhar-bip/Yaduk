@@ -23,11 +23,11 @@ class Settings(BaseSettings):
     AWS_SECRET_ACCESS_KEY: str = os.getenv("AWS_SECRET_ACCESS_KEY", "")
     AWS_BEDROCK_MODEL: str = os.getenv("AWS_BEDROCK_MODEL", "anthropic.claude-3-5-sonnet-20241022-v2:0")
 
-    # OpenRouter Fallback AI Settings (Secondary Tier: Reasoning & Nemotron Ultra)
-    OPENROUTER_API_KEY: str = os.getenv("OPENROUTER_API_KEY", "")
-    OPENROUTER_BASE_URL: str = os.getenv("OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1")
-    OPENROUTER_MODEL: str = os.getenv("OPENROUTER_MODEL", "nvidia/nemotron-3-ultra-550b-a55b:free")
-    OPENROUTER_TIMEOUT: float = float(os.getenv("OPENROUTER_TIMEOUT", "35.0"))
+    # NVIDIA NIM Fallback AI Settings (Secondary Tier: Reasoning & Nemotron Ultra 550B)
+    NVIDIA_API_KEY: str = os.getenv("NVIDIA_API_KEY", "")
+    NVIDIA_BASE_URL: str = os.getenv("NVIDIA_BASE_URL", "https://integrate.api.nvidia.com/v1")
+    NVIDIA_MODEL: str = os.getenv("NVIDIA_MODEL", "nvidia/nemotron-3-ultra-550b-a55b")
+    NVIDIA_TIMEOUT: float = float(os.getenv("NVIDIA_TIMEOUT", "45.0"))
 
     # Groq Fallback AI Settings (Tertiary Tier: High-Throughput Reasoning Engine)
     GROQ_API_KEY: str = os.getenv("GROQ_API_KEY", "")
@@ -35,10 +35,11 @@ class Settings(BaseSettings):
     GROQ_MODEL: str = os.getenv("GROQ_MODEL", "openai/gpt-oss-120b")
     GROQ_TIMEOUT: float = float(os.getenv("GROQ_TIMEOUT", "25.0"))
 
-    # Backward-compatible aliases for client interfaces
-    NVIDIA_API_KEY: str = os.getenv("NVIDIA_API_KEY", OPENROUTER_API_KEY or GROQ_API_KEY)
-    NVIDIA_BASE_URL: str = os.getenv("NVIDIA_BASE_URL", OPENROUTER_BASE_URL)
-    NVIDIA_MODEL: str = os.getenv("NVIDIA_MODEL", OPENROUTER_MODEL)
+    # Backward compatibility aliases for OpenRouter
+    OPENROUTER_API_KEY: str = os.getenv("OPENROUTER_API_KEY", NVIDIA_API_KEY)
+    OPENROUTER_BASE_URL: str = os.getenv("OPENROUTER_BASE_URL", NVIDIA_BASE_URL)
+    OPENROUTER_MODEL: str = os.getenv("OPENROUTER_MODEL", NVIDIA_MODEL)
+    OPENROUTER_TIMEOUT: float = NVIDIA_TIMEOUT
 
     # JWT Authentication settings
     JWT_SECRET_KEY: str = os.getenv("JWT_SECRET_KEY", "yaduk-super-secret-key-core-auth-jwt")

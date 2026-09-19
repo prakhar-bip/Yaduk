@@ -39,43 +39,51 @@ def call_bedrock(prompt: str, system_instruction: str = None, temperature: float
     )
     return response["output"]["message"]["content"][0]["text"]
 
-def get_openrouter_client():
-    api_key = settings.OPENROUTER_API_KEY or os.getenv("OPENROUTER_API_KEY", "")
+def get_nvidia_client():
+    api_key = settings.NVIDIA_API_KEY or os.getenv("NVIDIA_API_KEY", "")
     if not api_key:
         return None
     return OpenAI(
         api_key=api_key,
-        base_url=settings.OPENROUTER_BASE_URL,
-        default_headers={
-            "HTTP-Referer": "https://yaduk.ai",
-            "X-Title": "Yaduk AI",
-        }
+        base_url=settings.NVIDIA_BASE_URL
     )
 
-def call_openrouter(prompt: str, system_instruction: str = None, temperature: float = 0.4, max_tokens: int = 4096):
-    client = get_openrouter_client()
+def call_nvidia(prompt: str, system_instruction: str = None, temperature: float = 1.0, max_tokens: int = 16384):
+    client = get_nvidia_client()
     if not client:
-        raise ValueError("OpenRouter API key is not configured.")
+        raise ValueError("NVIDIA NIM API key is not configured.")
     
     messages = []
     if system_instruction:
         messages.append({"role": "system", "content": system_instruction})
     messages.append({"role": "user", "content": prompt})
     
-    extra_body = {}
-    model_lower = settings.OPENROUTER_MODEL.lower()
-    if "nemotron" in model_lower or "deepseek" in model_lower or "gpt-oss" in model_lower:
-        extra_body["reasoning"] = {"enabled": True}
+    extra_body = {"chat_template_kwargs": {"enable_thinking": True}}
 
-    response = client.chat.completions.create(
-        model=settings.OPENROUTER_MODEL,
+    completion = client.chat.completions.create(
+        model=settings.NVIDIA_MODEL,
         messages=messages,
         temperature=temperature,
+        top_p=0.95,
         max_tokens=max_tokens,
-        extra_body=extra_body if extra_body else None,
-        timeout=settings.OPENROUTER_TIMEOUT
+        extra_body=extra_body,
+        stream=True,
+        timeout=settings.NVIDIA_TIMEOUT
     )
-    return response.choices[0].message.content
+    
+    content_chunks = []
+    for chunk in completion:
+        if not chunk.choices:
+            continue
+        content = chunk.choices[0].delta.content
+        if content is not None:
+            content_chunks.append(content)
+            
+    return "".join(content_chunks)
+
+# Backward compatibility aliases
+get_openrouter_client = get_nvidia_client
+call_openrouter = call_nvidia
 
 def get_groq_client():
     api_key = settings.GROQ_API_KEY or os.getenv("GROQ_API_KEY", "")
@@ -113,7 +121,7 @@ def call_llm(
     """
     3-Tier Agentic Router Waterfall:
     1. AWS Bedrock (Claude 3.5 Sonnet / Llama 3.3 70B on Bedrock)
-    2. OpenRouter (nvidia/nemotron-3-ultra-550b-a55b:free with reasoning enabled)
+    2. NVIDIA NIM (nvidia/nemotron-3-ultra-550b-a55b with reasoning enabled)
     3. Groq (openai/gpt-oss-120b high-throughput reasoning engine)
     """
     # 1. Attempt AWS Bedrock if configured
@@ -133,28 +141,28 @@ def call_llm(
                 agent=f"{agent_name} (AWS Bedrock)",
                 success=False,
                 error=f"{type(e_bedrock).__name__}: {bedrock_err}",
-                warning_reason=f"Bedrock invocation failed, cascading to OpenRouter: {bedrock_err}"
+                warning_reason=f"Bedrock invocation failed, cascading to NVIDIA NIM: {bedrock_err}"
             )
 
-    # 2. Attempt OpenRouter (nvidia/nemotron-3-ultra-550b-a55b:free with reasoning)
-    openrouter_key = settings.OPENROUTER_API_KEY or os.getenv("OPENROUTER_API_KEY", "")
-    if openrouter_key:
+    # 2. Attempt NVIDIA NIM (nvidia/nemotron-3-ultra-550b-a55b with reasoning)
+    nvidia_key = settings.NVIDIA_API_KEY or os.getenv("NVIDIA_API_KEY", "")
+    if nvidia_key:
         try:
-            res = call_openrouter(prompt, system_instruction, temperature, max_tokens)
+            res = call_nvidia(prompt, system_instruction, temperature=1.0, max_tokens=max_tokens)
             log_activity(
-                agent=f"{agent_name} (OpenRouter: {settings.OPENROUTER_MODEL})",
+                agent=f"{agent_name} (NVIDIA NIM: {settings.NVIDIA_MODEL})",
                 success=True,
                 error=None,
                 warning_reason=None
             )
             return res
-        except Exception as e_openrouter:
-            openrouter_err = str(e_openrouter)
+        except Exception as e_nvidia:
+            nvidia_err = str(e_nvidia)
             log_activity(
-                agent=f"{agent_name} (OpenRouter)",
+                agent=f"{agent_name} (NVIDIA NIM)",
                 success=False,
-                error=f"{type(e_openrouter).__name__}: {openrouter_err}",
-                warning_reason=f"OpenRouter invocation failed, cascading to Groq: {openrouter_err}"
+                error=f"{type(e_nvidia).__name__}: {nvidia_err}",
+                warning_reason=f"NVIDIA NIM invocation failed, cascading to Groq: {nvidia_err}"
             )
 
     # 3. Tertiary Fallback: Groq (openai/gpt-oss-120b)
@@ -175,7 +183,7 @@ def call_llm(
             error=f"{type(e_groq).__name__}: {groq_err}",
             warning_reason=f"Reason: Groq generation failed ({groq_err})"
         )
-        raise RuntimeError(f"All 3 AI agent tiers (Bedrock -> OpenRouter -> Groq) failed: {groq_err}")
+        raise RuntimeError(f"All 3 AI agent tiers (Bedrock -> NVIDIA NIM -> Groq) failed: {groq_err}")
 
 
 def _repair_and_parse_json(text: str):
