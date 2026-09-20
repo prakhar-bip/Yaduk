@@ -46,7 +46,7 @@ export function MentorDock({
         className="pointer-events-auto inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 px-3.5 py-2 text-xs font-bold text-white shadow-lg shadow-blue-500/25 transition-all hover:shadow-xl hover:shadow-blue-500/35 hover:-translate-y-0.5 cursor-pointer [&_svg]:pointer-events-none [&_span]:pointer-events-none"
       >
         <YadukLogo size={20} />
-        <span>{open ? "Minimize Chat" : "Ask Yaduk"}</span>
+        <span>{open ? "Minimize Mentor" : "Ask AI Mentor"}</span>
       </button>
     </div>
   );

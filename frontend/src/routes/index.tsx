@@ -18,6 +18,7 @@ import { QuestHud } from "@/components/quest/QuestHud";
 import { QuestScrollPanel } from "@/components/quest/QuestScroll";
 import { BookWorkspace } from "@/components/quest/BookWorkspace";
 import { BookLandingCover } from "@/components/quest/BookLandingCover";
+import { MentorDock } from "@/components/quest/MentorDock";
 import { useJourney } from "@/lib/journey";
 import { useAuth, AUTH_TOKEN_KEY } from "@/lib/auth-context";
 import { AuthModal } from "@/components/auth/AuthModal";
@@ -169,6 +170,8 @@ function Home() {
   const [busy, setBusy] = useState<string | null>(null);
   const [applying, setApplying] = useState(false);
   const [scrollBusy, setScrollBusy] = useState(false);
+  const [askSeed, setAskSeed] = useState<{ text: string; n: number } | null>(null);
+  const [dockOpen, setDockOpen] = useState(false);
 
   // Ensure auth modal is immediately dismissed whenever user becomes authenticated
   useEffect(() => {
@@ -477,7 +480,8 @@ function Home() {
   }
 
   function ask(text: string) {
-    toast.info(`Advisor tip: Review the architecture layers and risks sections for "${text}".`);
+    setDockOpen(true);
+    setAskSeed({ text, n: Date.now() });
   }
 
   async function handleApply(request: string) {
@@ -865,6 +869,8 @@ function Home() {
             onResetFlow={handleResetFlow}
             onLogout={handleLogout}
             studentName={user?.fullName || "Engineering Candidate"}
+            onToggleMentor={() => setDockOpen(!dockOpen)}
+            isMentorOpen={dockOpen}
             isBusy={Boolean(busy)}
             leftPageOverride={
               state.stage === "ideas" && state.profile ? (
@@ -1123,6 +1129,32 @@ function Home() {
           </BookWorkspace>
         )}
       </main>
+
+      {/* Floating AI Mentor TA Desk accessible across all stages */}
+      {showQuest && (
+        <MentorDock
+          profile={state.profile || effectiveProfile}
+          blueprint={
+            state.blueprint || {
+              title: "Capstone Project",
+              tagline: "Final Year Engineering Project",
+              problemStatement: "Architecting a production-grade system",
+              targetAudience: "Faculty and External Reviewers",
+              mvpScope: [],
+              futureScope: [],
+              techStack: [],
+              architectureLayers: [],
+              phases: [],
+              risks: [],
+              vivaTopics: [],
+            }
+          }
+          askSeed={askSeed}
+          open={dockOpen}
+          onToggle={setDockOpen}
+          onAsked={() => award(40, "apprentice")}
+        />
+      )}
 
       <AuthModal
         open={authModalOpen && !isAuthenticated}

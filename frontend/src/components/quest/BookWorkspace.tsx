@@ -13,6 +13,7 @@ import {
   Home,
   RotateCcw,
   LogOut,
+  Sparkles,
 } from "lucide-react";
 
 export const STAGES: {
@@ -111,8 +112,8 @@ export function BookWorkspace({
   onResetFlow,
   onLogout,
   studentName,
-  onToggleMentor: _onToggleMentor,
-  isMentorOpen: _isMentorOpen,
+  onToggleMentor,
+  isMentorOpen,
   children,
   leftPageOverride,
   isBusy,
@@ -217,6 +218,22 @@ export function BookWorkspace({
             >
               <LogOut className="size-3.5 text-red-500 group-hover:text-white transition-colors" />
               <span>Log Out</span>
+            </button>
+          )}
+
+          {onToggleMentor && (
+            <button
+              type="button"
+              onClick={onToggleMentor}
+              className={`inline-flex items-center gap-1.5 rounded-xl border px-3 py-1.5 text-xs font-semibold transition-colors cursor-pointer ${
+                isMentorOpen
+                  ? "bg-blue-600 text-white border-blue-600 shadow-xs"
+                  : "border-blue-200 bg-blue-50/80 hover:bg-blue-100 text-blue-700"
+              }`}
+              title={isMentorOpen ? "Minimize AI Mentor" : "Ask AI Mentor & Viva Coach"}
+            >
+              <Sparkles className="size-3.5 text-blue-500" />
+              <span>{isMentorOpen ? "Close Mentor" : "AI Mentor"}</span>
             </button>
           )}
 
