@@ -8,9 +8,9 @@ import {
   ChevronLeft,
   ChevronRight,
   GraduationCap,
-  Sparkles,
   BookOpen,
   User,
+  Home,
 } from "lucide-react";
 
 export const STAGES: {
@@ -88,6 +88,7 @@ export const STAGES: {
 interface StudentStudioLayoutProps {
   currentStage: Stage;
   onSelectStage: (stage: Stage) => void;
+  onGoHome?: () => void;
   studentName?: string;
   onToggleMentor?: () => void;
   isMentorOpen?: boolean;
@@ -102,9 +103,10 @@ interface StudentStudioLayoutProps {
 export function BookWorkspace({
   currentStage,
   onSelectStage,
+  onGoHome,
   studentName,
-  onToggleMentor,
-  isMentorOpen,
+  onToggleMentor: _onToggleMentor,
+  isMentorOpen: _isMentorOpen,
   children,
   leftPageOverride,
   isBusy,
@@ -175,7 +177,19 @@ export function BookWorkspace({
         </div>
 
         {/* Student & Progress Info */}
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2.5 sm:gap-3">
+          {onGoHome && (
+            <button
+              type="button"
+              onClick={onGoHome}
+              className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-700 px-3 py-1.5 text-xs font-semibold transition-colors cursor-pointer"
+              title="Return to Portal Overview & Login"
+            >
+              <Home className="size-3.5 text-slate-500" />
+              <span>Overview</span>
+            </button>
+          )}
+
           <div className="hidden sm:flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs text-slate-700">
             <div className="grid size-5 place-items-center rounded-full bg-blue-600 text-[10px] font-bold text-white">
               <User className="size-3" />
@@ -300,20 +314,6 @@ export function BookWorkspace({
             {children}
           </main>
         )}
-      </div>
-
-      {/* ====================================================================
-          5. FLOATING AI CAMPUS MENTOR / VIVA COACH
-          ==================================================================== */}
-      <div className="fixed bottom-5 right-5 z-40">
-        <button
-          type="button"
-          onClick={onToggleMentor}
-          className="flex items-center gap-2 rounded-full bg-blue-700 text-white px-4 py-2.5 text-xs font-bold shadow-lg shadow-blue-700/25 hover:bg-blue-800 hover:scale-102 active:scale-98 transition-all cursor-pointer border border-blue-500/40"
-        >
-          <Sparkles className="size-4 text-amber-300" />
-          <span>{isMentorOpen ? "Close AI Mentor" : "Ask AI Mentor & Viva Coach"}</span>
-        </button>
       </div>
     </div>
   );

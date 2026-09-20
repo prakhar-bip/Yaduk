@@ -8,8 +8,6 @@ import { FeasibilityPanel } from "@/components/quest/FeasibilityPanel";
 import { IdeaDeck } from "@/components/quest/IdeaDeck";
 import { Mascot, SparkLine } from "@/components/quest/Mascot";
 import { YadukLogo } from "@/components/quest/YadukLogo";
-import { Mentor } from "@/components/quest/Mentor";
-import { MentorDock } from "@/components/quest/MentorDock";
 import { PlanChangeBar } from "@/components/quest/PlanChangeBar";
 import { ProfileCard } from "@/components/quest/ProfileCard";
 import { ThemeSelection } from "@/components/quest/ThemeSelection";
@@ -96,9 +94,11 @@ function Loader({ label }: { label: string }) {
 function LandingNavbar({
   onOpenAuth,
   onLogout,
+  onStart,
 }: {
   onOpenAuth: (tab: "login" | "register") => void;
   onLogout?: () => void;
+  onStart?: () => void;
 }) {
   const { user, isAuthenticated, logout } = useAuth();
 
@@ -124,6 +124,16 @@ function LandingNavbar({
         <div className="flex items-center gap-3">
           {isAuthenticated && user ? (
             <div className="flex items-center gap-2">
+              {onStart && (
+                <button
+                  type="button"
+                  onClick={onStart}
+                  className="hidden sm:inline-flex items-center gap-1.5 rounded-full bg-blue-600 px-3.5 py-1.5 text-xs font-bold text-white shadow-sm shadow-blue-500/20 hover:bg-blue-700 transition-all cursor-pointer"
+                >
+                  <span>Enter Studio</span>
+                  <ArrowRight className="size-3" />
+                </button>
+              )}
               <div className="flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs shadow-xs">
                 <span className="grid size-6 place-items-center rounded-full bg-blue-600 font-bold text-white text-xs shadow-xs">
                   {user.fullName ? user.fullName[0]?.toUpperCase() : (user.email?.[0] || "U").toUpperCase()}
@@ -174,8 +184,6 @@ function Home() {
   const [busy, setBusy] = useState<string | null>(null);
   const [applying, setApplying] = useState(false);
   const [scrollBusy, setScrollBusy] = useState(false);
-  const [askSeed, setAskSeed] = useState<{ text: string; n: number } | null>(null);
-  const [dockOpen, setDockOpen] = useState(false);
 
   // Ensure auth modal is immediately dismissed whenever user becomes authenticated
   useEffect(() => {
@@ -185,6 +193,9 @@ function Home() {
   }, [isAuthenticated]);
 
   const handleLogout = () => {
+    if (typeof window !== "undefined") {
+      sessionStorage.removeItem("yaduk.studio_active");
+    }
     logout();
     reset();
     update({ stage: "intro" });
@@ -203,6 +214,9 @@ function Home() {
     const handleSessionCleared = () => {
       reset();
       update({ stage: "intro" });
+      if (typeof window !== "undefined") {
+        sessionStorage.removeItem("yaduk.studio_active");
+      }
     };
     window.addEventListener("yaduk:session_cleared", handleSessionCleared);
     window.addEventListener("sarthi:session_cleared", handleSessionCleared);
@@ -212,6 +226,19 @@ function Home() {
     };
   }, [reset, update]);
 
+  // Ensure unauthenticated visitors or users without an active studio session land on the intro/auth page
+  useEffect(() => {
+    if (hydrated && !isLoading) {
+      const studioActive =
+        typeof window !== "undefined"
+          ? Boolean(sessionStorage.getItem("yaduk.studio_active"))
+          : false;
+      if (!isAuthenticated && !studioActive && state.stage !== "intro") {
+        update({ stage: "intro" });
+      }
+    }
+  }, [hydrated, isLoading, isAuthenticated, state.stage, update]);
+
   const openAuth = (tab: "login" | "register") => {
     if (isAuthenticated) return;
     setAuthModalTab(tab);
@@ -219,8 +246,12 @@ function Home() {
   };
 
   const handleAuthSuccess = () => {
+    if (typeof window !== "undefined") {
+      sessionStorage.setItem("yaduk.studio_active", "true");
+    }
     setAuthModalOpen(false);
-    update({ stage: "discovery" });
+    const nextStage = state.stage && state.stage !== "intro" ? state.stage : "discovery";
+    update({ stage: nextStage });
   };
 
   const handleStartJourney = (forceAuthenticated = false) => {
@@ -237,10 +268,14 @@ function Home() {
 
     if (!isAuthed) {
       openAuth("login");
-      toast.info("Please sign in or create an account to access the project discovery quest.");
+      toast.info("Please sign in or create an account to start your capstone project.");
     } else {
+      if (typeof window !== "undefined") {
+        sessionStorage.setItem("yaduk.studio_active", "true");
+      }
       setAuthModalOpen(false);
-      update({ stage: "discovery" });
+      const nextStage = state.stage && state.stage !== "intro" ? state.stage : "discovery";
+      update({ stage: nextStage });
     }
   };
 
@@ -444,8 +479,7 @@ function Home() {
   }
 
   function ask(text: string) {
-    setDockOpen(true);
-    setAskSeed({ text, n: Date.now() });
+    toast.info(`Advisor tip: Review the architecture layers and risks sections for "${text}".`);
   }
 
   async function handleApply(request: string) {
@@ -793,12 +827,23 @@ function Home() {
 
   if (!hydrated) return null;
 
-  // Render quest pipeline if authenticated OR if user is on a quest stage
-  const showQuest = (isAuthenticated || state.stage !== "intro") && state.stage !== "intro";
+  const isStudioActive =
+    typeof window !== "undefined"
+      ? Boolean(sessionStorage.getItem("yaduk.studio_active"))
+      : false;
+
+  // Render quest pipeline only when stage is not intro AND either user is authenticated or has active studio session
+  const showQuest = state.stage !== "intro" && (isAuthenticated || isStudioActive);
 
   return (
     <div className="min-h-screen">
-      {!showQuest && <LandingNavbar onOpenAuth={openAuth} onLogout={handleLogout} />}
+      {!showQuest && (
+        <LandingNavbar
+          onOpenAuth={openAuth}
+          onLogout={handleLogout}
+          onStart={() => handleStartJourney(true)}
+        />
+      )}
 
       <main className="mx-auto max-w-7xl px-3 sm:px-5 py-6 sm:py-8">
         {!showQuest && (
@@ -813,9 +858,13 @@ function Home() {
           <BookWorkspace
             currentStage={state.stage}
             onSelectStage={handleStageNavigation}
+            onGoHome={() => {
+              if (typeof window !== "undefined") {
+                sessionStorage.removeItem("yaduk.studio_active");
+              }
+              update({ stage: "intro" });
+            }}
             studentName={user?.fullName || "Engineering Candidate"}
-            onToggleMentor={() => setDockOpen(!dockOpen)}
-            isMentorOpen={dockOpen}
             isBusy={Boolean(busy)}
             leftPageOverride={
               state.stage === "ideas" && state.profile ? (
@@ -981,7 +1030,6 @@ function Home() {
                     setBusy(null);
                     update({ stage: "theme" });
                   }}
-                  onOpenMentor={() => setDockOpen(true)}
                   onProceedToSetup={() => void handleProceedToSetup()}
                 />
               </div>
@@ -1075,32 +1123,6 @@ function Home() {
           </BookWorkspace>
         )}
       </main>
-
-      {/* Floating AI Mentor TA Desk accessible across all stages */}
-      {showQuest && (
-        <MentorDock
-          profile={state.profile || effectiveProfile}
-          blueprint={
-            state.blueprint || {
-              title: "Capstone Project",
-              tagline: "Final Year Engineering Project",
-              problemStatement: "Architecting a production-grade system",
-              targetAudience: "Faculty and External Reviewers",
-              mvpScope: [],
-              futureScope: [],
-              techStack: [],
-              architectureLayers: [],
-              phases: [],
-              risks: [],
-              vivaTopics: [],
-            }
-          }
-          askSeed={askSeed}
-          open={dockOpen}
-          onToggle={setDockOpen}
-          onAsked={() => award(40, "apprentice")}
-        />
-      )}
 
       <AuthModal
         open={authModalOpen && !isAuthenticated}
