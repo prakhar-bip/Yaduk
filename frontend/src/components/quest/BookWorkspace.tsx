@@ -14,7 +14,6 @@ import {
   Home,
   RotateCcw,
   LogOut,
-  Sparkles,
 } from "lucide-react";
 
 export const STAGES: {
@@ -113,8 +112,8 @@ export function BookWorkspace({
   onResetFlow,
   onLogout,
   studentName,
-  onToggleMentor,
-  isMentorOpen,
+  onToggleMentor: _onToggleMentor,
+  isMentorOpen: _isMentorOpen,
   children,
   leftPageOverride,
   isBusy,
@@ -203,32 +202,25 @@ export function BookWorkspace({
         </div>
 
         {/* ====================================================================
-            STUDENT PROFILE & ACADEMIC MENU DROPDOWN (Groups all 5 buttons)
+            STUDENT PROFILE & ACADEMIC MENU (Right Corner Dropdown)
             ==================================================================== */}
-        <div className="relative" ref={dropdownRef}>
+        <div className="relative ml-auto" ref={dropdownRef}>
           <button
             type="button"
             onClick={() => setDropdownOpen((prev) => !prev)}
             aria-expanded={dropdownOpen}
             aria-haspopup="true"
-            className="flex items-center gap-2 sm:gap-2.5 rounded-2xl border border-slate-200/90 bg-slate-50/80 hover:bg-slate-100/90 hover:border-slate-300 px-3 py-1.5 text-xs transition-all shadow-xs cursor-pointer select-none"
+            className="flex items-center gap-2 sm:gap-2.5 rounded-2xl border border-slate-200/90 bg-white hover:bg-slate-50 hover:border-slate-300 px-3.5 py-1.5 text-xs text-slate-800 transition-all shadow-xs cursor-pointer select-none"
+            title="Candidate Profile & Menu"
           >
             <div className="grid size-7 place-items-center rounded-xl bg-blue-600 font-bold text-white text-xs shadow-xs">
-              {studentName ? studentName[0]?.toUpperCase() : "C"}
+              <User className="size-3.5" />
             </div>
-            <div className="text-left hidden sm:block">
-              <div className="flex items-center gap-1.5">
-                <span className="font-bold text-slate-800 text-xs leading-none">
-                  {studentName || "Candidate"}
-                </span>
-                <span className="text-[10px] font-medium text-slate-500">
-                  • B.Tech CSE
-                </span>
-              </div>
-              <span className="text-[10px] text-slate-400 block mt-0.5">
-                Stage {currentIndex + 1}/9: {activeStage.label}
-              </span>
-            </div>
+            <span className="font-bold text-slate-900 text-xs">Profile</span>
+            <span className="text-slate-300 hidden sm:inline">•</span>
+            <span className="font-medium text-slate-600 hidden sm:inline max-w-[120px] truncate">
+              {studentName || "Candidate"}
+            </span>
             <div className="flex items-center gap-1 rounded-full bg-blue-100 border border-blue-200 px-2 py-0.5 text-[11px] font-extrabold text-blue-800">
               <BookOpen className="size-3 text-blue-700" />
               <span>{percentComplete}%</span>
@@ -247,7 +239,7 @@ export function BookWorkspace({
                 <div className="flex items-center justify-between mb-2">
                   <div className="flex items-center gap-2">
                     <div className="grid size-8 place-items-center rounded-xl bg-blue-600 text-xs font-bold text-white shadow-xs">
-                      {studentName ? studentName[0]?.toUpperCase() : "C"}
+                      <User className="size-4 text-white" />
                     </div>
                     <div>
                       <p className="font-bold text-slate-900 text-xs leading-none">
@@ -278,27 +270,6 @@ export function BookWorkspace({
 
               {/* Menu Actions */}
               <div className="space-y-0.5">
-                {onToggleMentor && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setDropdownOpen(false);
-                      onToggleMentor();
-                    }}
-                    className="flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-xs font-medium text-slate-700 hover:bg-blue-50 hover:text-blue-800 transition-colors cursor-pointer"
-                  >
-                    <Sparkles className="size-4 text-blue-600 shrink-0" />
-                    <div className="text-left flex-1">
-                      <span className="font-semibold block text-slate-800">
-                        {isMentorOpen ? "Minimize AI Mentor" : "Ask AI Mentor"}
-                      </span>
-                      <span className="text-[10px] text-slate-500">
-                        Viva coach & capstone guidance
-                      </span>
-                    </div>
-                  </button>
-                )}
-
                 {onGoHome && (
                   <button
                     type="button"
