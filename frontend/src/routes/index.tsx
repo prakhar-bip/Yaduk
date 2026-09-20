@@ -92,11 +92,11 @@ function Loader({ label }: { label: string }) {
 }
 
 function LandingNavbar({
-  onOpenAuth,
+  onOpenAuth: _onOpenAuth,
   onLogout,
   onStart,
 }: {
-  onOpenAuth: (tab: "login" | "register") => void;
+  onOpenAuth?: (tab: "login" | "register") => void;
   onLogout?: () => void;
   onStart?: () => void;
 }) {
@@ -154,22 +154,7 @@ function LandingNavbar({
                 <span>Log Out</span>
               </button>
             </div>
-          ) : (
-            <div className="flex items-center gap-2.5">
-              <button
-                onClick={() => onOpenAuth("login")}
-                className="rounded-full border border-slate-200 bg-white px-4 py-2 text-xs font-semibold text-slate-700 transition-all hover:bg-slate-50 hover:border-slate-300 shadow-xs cursor-pointer"
-              >
-                Sign In
-              </button>
-              <button
-                onClick={() => onOpenAuth("register")}
-                className="rounded-full bg-blue-600 px-5 py-2 text-xs font-semibold text-white shadow-md shadow-blue-500/20 transition-all hover:bg-blue-700 hover:shadow-lg hover:shadow-blue-500/25 cursor-pointer"
-              >
-                Create Account
-              </button>
-            </div>
-          )}
+          ) : null}
         </div>
       </div>
     </nav>
@@ -206,6 +191,19 @@ function Home() {
       } catch {
         /* ignore */
       }
+    }
+  };
+
+  const handleResetFlow = () => {
+    if (typeof window !== "undefined") {
+      const confirmed = window.confirm(
+        "Are you sure you want to reset your capstone project flow? All current progress will be reset back to Stage 1: Discovery."
+      );
+      if (!confirmed) return;
+      reset();
+      sessionStorage.setItem("yaduk.studio_active", "1");
+      update({ stage: "discovery" });
+      toast.info("Project flow reset to Stage 1: Discovery");
     }
   };
 
@@ -864,6 +862,8 @@ function Home() {
               }
               update({ stage: "intro" });
             }}
+            onResetFlow={handleResetFlow}
+            onLogout={handleLogout}
             studentName={user?.fullName || "Engineering Candidate"}
             isBusy={Boolean(busy)}
             leftPageOverride={

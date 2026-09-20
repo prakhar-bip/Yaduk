@@ -11,6 +11,8 @@ import {
   BookOpen,
   User,
   Home,
+  RotateCcw,
+  LogOut,
 } from "lucide-react";
 
 export const STAGES: {
@@ -89,6 +91,8 @@ interface StudentStudioLayoutProps {
   currentStage: Stage;
   onSelectStage: (stage: Stage) => void;
   onGoHome?: () => void;
+  onResetFlow?: () => void;
+  onLogout?: () => void;
   studentName?: string;
   onToggleMentor?: () => void;
   isMentorOpen?: boolean;
@@ -104,6 +108,8 @@ export function BookWorkspace({
   currentStage,
   onSelectStage,
   onGoHome,
+  onResetFlow,
+  onLogout,
   studentName,
   onToggleMentor: _onToggleMentor,
   isMentorOpen: _isMentorOpen,
@@ -177,7 +183,7 @@ export function BookWorkspace({
         </div>
 
         {/* Student & Progress Info */}
-        <div className="flex items-center gap-2.5 sm:gap-3">
+        <div className="flex flex-wrap items-center gap-2 sm:gap-2.5">
           {onGoHome && (
             <button
               type="button"
@@ -186,11 +192,35 @@ export function BookWorkspace({
               title="Return to Portal Overview & Login"
             >
               <Home className="size-3.5 text-slate-500" />
-              <span>Overview</span>
+              <span className="hidden sm:inline">Overview</span>
             </button>
           )}
 
-          <div className="hidden sm:flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs text-slate-700">
+          {onResetFlow && (
+            <button
+              type="button"
+              onClick={onResetFlow}
+              className="inline-flex items-center gap-1.5 rounded-xl border border-amber-200 bg-amber-50/70 hover:bg-amber-100 text-amber-800 px-3 py-1.5 text-xs font-semibold transition-colors cursor-pointer"
+              title="Reset project flow back to Stage 1: Discovery"
+            >
+              <RotateCcw className="size-3.5 text-amber-600" />
+              <span>Reset Flow</span>
+            </button>
+          )}
+
+          {onLogout && (
+            <button
+              type="button"
+              onClick={onLogout}
+              className="inline-flex items-center gap-1.5 rounded-xl border border-red-200 bg-red-50/70 hover:bg-red-600 hover:text-white text-red-600 px-3 py-1.5 text-xs font-semibold transition-colors cursor-pointer group"
+              title="Log out of Yaduk"
+            >
+              <LogOut className="size-3.5 text-red-500 group-hover:text-white transition-colors" />
+              <span>Log Out</span>
+            </button>
+          )}
+
+          <div className="hidden md:flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs text-slate-700">
             <div className="grid size-5 place-items-center rounded-full bg-blue-600 text-[10px] font-bold text-white">
               <User className="size-3" />
             </div>
