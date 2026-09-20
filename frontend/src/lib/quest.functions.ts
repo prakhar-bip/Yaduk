@@ -1663,6 +1663,531 @@ export function parseDelimitedCodeFiles(text: string): GeneratedCodeFile[] {
   return files;
 }
 
+// ============================================================
+// CODE GENERATION HELPERS — Contract-Aware Code Synthesis
+// ============================================================
+
+/** Map SQL column types from the contract DDL to SQLAlchemy column types */
+function sqlTypeToSqlAlchemy(sqlType: string): string {
+  const t = sqlType.toUpperCase().trim();
+  if (t === 'UUID') return 'UUID(as_uuid=True)';
+  if (t.startsWith('VARCHAR') || t.startsWith('CHARACTER VARYING')) {
+    const match = t.match(/\((\d+)\)/);
+    return match ? `String(${match[1]})` : 'String(255)';
+  }
+  if (t === 'TEXT') return 'Text';
+  if (t === 'INTEGER' || t === 'INT' || t === 'INT4') return 'Integer';
+  if (t === 'BIGINT' || t === 'INT8') return 'BigInteger';
+  if (t === 'SMALLINT' || t === 'INT2') return 'SmallInteger';
+  if (t === 'SERIAL') return 'Integer';
+  if (t === 'BIGSERIAL') return 'BigInteger';
+  if (t === 'BOOLEAN' || t === 'BOOL') return 'Boolean';
+  if (t.startsWith('NUMERIC') || t.startsWith('DECIMAL')) {
+    const match = t.match(/\((\d+),\s*(\d+)\)/);
+    return match ? `Numeric(${match[1]}, ${match[2]})` : 'Numeric';
+  }
+  if (t === 'FLOAT' || t === 'REAL' || t === 'DOUBLE PRECISION' || t === 'FLOAT8') return 'Float';
+  if (t === 'DATE') return 'Date';
+  if (t.startsWith('TIMESTAMP')) return 'DateTime(timezone=True)';
+  if (t === 'JSONB' || t === 'JSON') return 'JSON';
+  if (t === 'BYTEA') return 'LargeBinary';
+  return 'String(255)';
+}
+
+/** Convert a SQL table name to a PascalCase Python class name */
+function tableToPascal(tableName: string): string {
+  return tableName
+    .split(/[_\s]+/)
+    .map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
+    .join('');
+}
+
+/** Convert a snake_case name to camelCase for TypeScript */
+function snakeToCamel(s: string): string {
+  return s.replace(/_([a-z])/g, (_, c) => c.toUpperCase());
+}
+
+/** Convert a snake_case name to PascalCase for TypeScript */
+function snakeToPascal(s: string): string {
+  const camel = snakeToCamel(s);
+  return camel.charAt(0).toUpperCase() + camel.slice(1);
+}
+
+/** Generate SQLAlchemy model code from contract database tables */
+function generateModelsFromContract(tables: DatabaseTableSpec[], title: string): string {
+  const imports = new Set<string>(['Column', 'String', 'Integer']);
+  
+  // Scan all columns to collect needed imports
+  for (const table of tables) {
+    for (const col of table.columns) {
+      const saType = sqlTypeToSqlAlchemy(col.type);
+      if (saType.includes('Text')) imports.add('Text');
+      if (saType.includes('Boolean')) imports.add('Boolean');
+      if (saType.includes('Float')) imports.add('Float');
+      if (saType.includes('Numeric')) imports.add('Numeric');
+      if (saType.includes('DateTime')) imports.add('DateTime');
+      if (saType.includes('Date') && !saType.includes('DateTime')) imports.add('Date');
+      if (saType.includes('JSON')) imports.add('JSON');
+      if (saType.includes('BigInteger')) imports.add('BigInteger');
+      if (saType.includes('SmallInteger')) imports.add('SmallInteger');
+      if (saType.includes('LargeBinary')) imports.add('LargeBinary');
+      if (saType.includes('UUID')) imports.add('UUID');
+      if (col.isForeign) imports.add('ForeignKey');
+    }
+  }
+  
+  const importList = Array.from(imports).sort().join(', ');
+  
+  let code = `"""${title} — SQLAlchemy ORM Models.
+
+Auto-generated from the verified Backend Contract database schema.
+"""
+from sqlalchemy import ${importList}
+from sqlalchemy.sql import func
+from backend.app.database import Base\n\n`;
+  
+  for (const table of tables) {
+    const className = tableToPascal(table.tableName);
+    code += `\nclass ${className}(Base):\n`;
+    code += `    """${table.description || table.tableName}"""\n`;
+    code += `    __tablename__ = "${table.tableName}"\n\n`;
+    
+    for (const col of table.columns) {
+      const saType = sqlTypeToSqlAlchemy(col.type);
+      const parts: string[] = [saType];
+      
+      if (col.isPrimary) parts.push('primary_key=True');
+      if (col.isForeign && col.references) parts.push(`ForeignKey("${col.references}")`);
+      if (!col.nullable && !col.isPrimary) parts.push('nullable=False');
+      if (col.nullable) parts.push('nullable=True');
+      if (col.isPrimary && (saType.includes('Integer') || saType.includes('BigInteger'))) parts.push('autoincrement=True');
+      if (col.name === 'created_at' || col.name === 'updated_at') parts.push('server_default=func.now()');
+      if (col.isPrimary && saType.includes('UUID')) parts.push('server_default=func.uuid_generate_v4()');
+      
+      const colDef = parts.join(', ');
+      code += `    ${col.name} = Column(${colDef})`;
+      if (col.description) code += `  # ${col.description}`;
+      code += '\n';
+    }
+    
+    if (table.indexes && table.indexes.length > 0) {
+      code += '\n';
+      for (const idx of table.indexes) {
+        code += `    # Index: ${idx}\n`;
+      }
+    }
+    code += '\n';
+  }
+  
+  return code;
+}
+
+/** Generate Pydantic schemas from contract API routes and database tables */
+function generateSchemasFromContract(tables: DatabaseTableSpec[], routes: ApiRouteSpec[], title: string): string {
+  let code = `"""${title} — Pydantic v2 Request/Response Schemas.
+
+Auto-generated from the verified Backend Contract API routes and database schema.
+"""
+from pydantic import BaseModel, ConfigDict, Field
+from typing import Optional, List, Any
+from datetime import datetime\n\n`;
+  
+  code += `class HealthResponse(BaseModel):\n`;
+  code += `    status: str = "healthy"\n`;
+  code += `    app: str = "${title}"\n`;
+  code += `    timestamp: datetime = Field(default_factory=datetime.utcnow)\n\n`;
+  
+  code += `class TokenResponse(BaseModel):\n`;
+  code += `    access_token: str\n`;
+  code += `    token_type: str = "bearer"\n\n`;
+  
+  // Generate Create and Response schemas for each table
+  for (const table of tables) {
+    const pascal = tableToPascal(table.tableName);
+    const nonAutoColumns = table.columns.filter(c => !c.isPrimary && c.name !== 'created_at' && c.name !== 'updated_at');
+    const allColumns = table.columns;
+    
+    // Create schema
+    code += `class ${pascal}Create(BaseModel):\n`;
+    code += `    """Create schema for ${table.description || table.tableName}"""\n`;
+    for (const col of nonAutoColumns) {
+      const pyType = sqlTypeToPydantic(col.type);
+      if (col.nullable) {
+        code += `    ${col.name}: Optional[${pyType}] = None\n`;
+      } else {
+        code += `    ${col.name}: ${pyType}\n`;
+      }
+    }
+    code += '\n';
+    
+    // Response schema
+    code += `class ${pascal}Response(BaseModel):\n`;
+    code += `    """Response schema for ${table.description || table.tableName}"""\n`;
+    for (const col of allColumns) {
+      const pyType = sqlTypeToPydantic(col.type);
+      if (col.nullable || col.name === 'created_at' || col.name === 'updated_at') {
+        code += `    ${col.name}: Optional[${pyType}] = None\n`;
+      } else {
+        code += `    ${col.name}: ${pyType}\n`;
+      }
+    }
+    code += `\n    model_config = ConfigDict(from_attributes=True)\n\n`;
+  }
+  
+  return code;
+}
+
+/** Map SQL types to Pydantic/Python types */
+function sqlTypeToPydantic(sqlType: string): string {
+  const t = sqlType.toUpperCase().trim();
+  if (t === 'UUID') return 'str';
+  if (t.startsWith('VARCHAR') || t.startsWith('CHARACTER VARYING') || t === 'TEXT') return 'str';
+  if (t === 'INTEGER' || t === 'INT' || t === 'SERIAL' || t === 'INT4' || t === 'SMALLINT' || t === 'INT2') return 'int';
+  if (t === 'BIGINT' || t === 'INT8' || t === 'BIGSERIAL') return 'int';
+  if (t === 'BOOLEAN' || t === 'BOOL') return 'bool';
+  if (t.startsWith('NUMERIC') || t.startsWith('DECIMAL') || t === 'FLOAT' || t === 'REAL' || t === 'DOUBLE PRECISION') return 'float';
+  if (t === 'DATE') return 'str';
+  if (t.startsWith('TIMESTAMP')) return 'datetime';
+  if (t === 'JSONB' || t === 'JSON') return 'Any';
+  return 'str';
+}
+
+/** Generate a FastAPI router for a specific screen's API endpoints */
+function generateRouterForScreen(
+  screenMapping: { screen: string; route: string; apiEndpoints: string[]; dbEntities: string[] },
+  routes: ApiRouteSpec[],
+  tables: DatabaseTableSpec[],
+): string {
+  const screenRoutes = routes.filter(r => r.screenName === screenMapping.screen || screenMapping.apiEndpoints.some(ep => r.route.includes(ep.replace(/^\/api\/v1/, ''))));
+  if (screenRoutes.length === 0) return '';
+  
+  const slug = screenMapping.screen.toLowerCase().replace(/[^a-z0-9]+/g, '_');
+  const modelImports = screenMapping.dbEntities.map(e => tableToPascal(e)).join(', ');
+  const schemaImports = screenMapping.dbEntities.flatMap(e => {
+    const p = tableToPascal(e);
+    return [`${p}Create`, `${p}Response`];
+  }).join(', ');
+  
+  let code = `"""${screenMapping.screen} — API Router.
+
+Handles: ${screenRoutes.map(r => `${r.method} ${r.route}`).join(', ')}
+"""
+from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy.ext.asyncio import AsyncSession
+from typing import List, Optional
+from backend.app.database import get_db
+from backend.app.models import ${modelImports || 'Base'}
+from backend.app.schemas import ${schemaImports || 'HealthResponse'}\n\n`;
+  
+  code += `router = APIRouter(tags=["${screenMapping.screen}"])\n\n`;
+  
+  for (const route of screenRoutes) {
+    const cleanRoute = route.route.replace(/^\/api\/v1/, '') || '/';
+    const fnName = cleanRoute.replace(/[^a-zA-Z0-9]+/g, '_').replace(/^_+|_+$/g, '') || 'root';
+    const method = route.method.toLowerCase();
+    const primaryEntity = screenMapping.dbEntities[0];
+    const modelName = primaryEntity ? tableToPascal(primaryEntity) : null;
+    
+    code += `@router.${method}("${cleanRoute}")\n`;
+    code += `async def ${fnName}(`;
+    
+    // Add parameters based on route pattern
+    const hasPathParam = cleanRoute.includes('{');
+    const paramMatch = cleanRoute.match(/\{(\w+)\}/);
+    const params: string[] = [];
+    if (hasPathParam && paramMatch) params.push(`${paramMatch[1]}: str`);
+    if ((method === 'post' || method === 'put' || method === 'patch') && modelName) {
+      params.push(`data: ${modelName}Create`);
+    }
+    params.push('db: AsyncSession = Depends(get_db)');
+    code += params.join(', ');
+    code += `):\n`;
+    code += `    """${route.summary}"""\n`;
+    
+    // Generate real implementation based on method
+    if (method === 'get' && !hasPathParam && modelName) {
+      code += `    result = await db.execute(select(${modelName}))\n`;
+      code += `    items = result.scalars().all()\n`;
+      code += `    return [{"id": str(item.id), **{c.name: getattr(item, c.name) for c in ${modelName}.__table__.columns}} for item in items]\n`;
+    } else if (method === 'get' && hasPathParam && modelName) {
+      const param = paramMatch ? paramMatch[1] : 'id';
+      code += `    result = await db.execute(select(${modelName}).where(${modelName}.id == ${param}))\n`;
+      code += `    item = result.scalar_one_or_none()\n`;
+      code += `    if not item:\n`;
+      code += `        raise HTTPException(status_code=404, detail="${modelName} not found")\n`;
+      code += `    return item\n`;
+    } else if (method === 'post' && modelName) {
+      code += `    new_item = ${modelName}(**data.model_dump())\n`;
+      code += `    db.add(new_item)\n`;
+      code += `    await db.commit()\n`;
+      code += `    await db.refresh(new_item)\n`;
+      code += `    return new_item\n`;
+    } else if (method === 'put' && hasPathParam && modelName) {
+      const param = paramMatch ? paramMatch[1] : 'id';
+      code += `    result = await db.execute(select(${modelName}).where(${modelName}.id == ${param}))\n`;
+      code += `    item = result.scalar_one_or_none()\n`;
+      code += `    if not item:\n`;
+      code += `        raise HTTPException(status_code=404, detail="${modelName} not found")\n`;
+      code += `    for key, value in data.model_dump(exclude_unset=True).items():\n`;
+      code += `        setattr(item, key, value)\n`;
+      code += `    await db.commit()\n`;
+      code += `    await db.refresh(item)\n`;
+      code += `    return item\n`;
+    } else if (method === 'delete' && hasPathParam && modelName) {
+      const param = paramMatch ? paramMatch[1] : 'id';
+      code += `    result = await db.execute(select(${modelName}).where(${modelName}.id == ${param}))\n`;
+      code += `    item = result.scalar_one_or_none()\n`;
+      code += `    if not item:\n`;
+      code += `        raise HTTPException(status_code=404, detail="${modelName} not found")\n`;
+      code += `    await db.delete(item)\n`;
+      code += `    await db.commit()\n`;
+      code += `    return {"status": "deleted", "id": ${param}}\n`;
+    } else {
+      code += `    return ${route.responsePayload || `{"status": "ok", "message": "${route.summary}"}`}\n`;
+    }
+    code += '\n';
+  }
+  
+  return code;
+}
+
+/** Resolve theme palette from selectedTheme ID string by matching against known presets */
+function resolveThemePalette(selectedTheme: string): { primary: string; secondary: string; accent: string; dark: string } {
+  const KNOWN_PALETTES: Record<string, string[]> = {
+    'clinical-precision': ['#0F172A', '#0284C7', '#F0F9FF', '#EF4444'],
+    'caregiver-mint': ['#F8FAF8', '#059669', '#EA580C', '#334155'],
+    'spectral-dark-hud': ['#050811', '#06B6D4', '#F43F5E', '#1E293B'],
+    'terra-botanical': ['#14532D', '#F59E0B', '#F0FDF4', '#78350F'],
+    'neo-brutalism': ['#1A1A2E', '#E94560', '#0F3460', '#16213E'],
+    'modern-minimal': ['#0F172A', '#3B82F6', '#F8FAFC', '#10B981'],
+    'cyber-neon': ['#0A0A0A', '#00FF41', '#FF00FF', '#1A1A2E'],
+    'glass-aurora': ['#0C0C1D', '#7C3AED', '#06B6D4', '#1E1E3F'],
+  };
+  
+  const palette = KNOWN_PALETTES[selectedTheme];
+  if (palette && palette.length >= 4) {
+    return { dark: palette[0]!, primary: palette[1]!, secondary: palette[2]!, accent: palette[3]! };
+  }
+  return { dark: '#0F172A', primary: '#3B82F6', secondary: '#F8FAFC', accent: '#10B981' };
+}
+
+/** Generate a React page component for a specific screen */
+function generatePageComponentForScreen(
+  screenMapping: { screen: string; route: string; apiEndpoints: string[]; dbEntities: string[] },
+  routes: ApiRouteSpec[],
+  theme: { primary: string; secondary: string; accent: string; dark: string },
+  title: string,
+): string {
+  const screenRoutes = routes.filter(r => r.screenName === screenMapping.screen || screenMapping.apiEndpoints.some(ep => r.route.includes(ep.replace(/^\/api\/v1/, ''))));
+  const componentName = snakeToPascal(screenMapping.screen.replace(/[^a-zA-Z0-9]+/g, '_'));
+  const primaryEntity = screenMapping.dbEntities[0] || 'item';
+  const entityPascal = snakeToPascal(primaryEntity);
+  
+  const getRoutes = screenRoutes.filter(r => r.method === 'GET');
+  const postRoutes = screenRoutes.filter(r => r.method === 'POST');
+  const hasForm = postRoutes.length > 0;
+  const hasList = getRoutes.some(r => !r.route.includes('{'));
+  
+  // Parse fields from POST requestPayload if available
+  let formFields: string[] = [];
+  if (postRoutes[0]?.requestPayload) {
+    try {
+      const payload = JSON.parse(postRoutes[0].requestPayload);
+      formFields = Object.keys(payload);
+    } catch {
+      formFields = ['name', 'description'];
+    }
+  }
+  if (formFields.length === 0) formFields = ['name', 'description'];
+  
+  let code = `import React, { useState, useEffect } from 'react';\n`;
+  code += `import { ApiService } from '../api/client';\n\n`;
+  
+  code += `export default function ${componentName}() {\n`;
+  code += `  const [items, setItems] = useState<any[]>([]);\n`;
+  code += `  const [loading, setLoading] = useState(true);\n`;
+  code += `  const [error, setError] = useState<string | null>(null);\n`;
+  code += `  const [showForm, setShowForm] = useState(false);\n`;
+  
+  // Form state
+  if (hasForm) {
+    for (const field of formFields) {
+      code += `  const [${snakeToCamel(field)}, set${snakeToPascal(field)}] = useState('');\n`;
+    }
+    code += `  const [submitting, setSubmitting] = useState(false);\n`;
+  }
+  
+  // Fetch data
+  if (hasList) {
+    const listRoute = getRoutes.find(r => !r.route.includes('{'));
+    const listFn = listRoute ? listRoute.route.replace(/[^a-zA-Z0-9]+/g, '_').replace(/^_+|_+$/g, '') : 'getItems';
+    code += `\n  useEffect(() => {\n`;
+    code += `    async function fetchData() {\n`;
+    code += `      try {\n`;
+    code += `        setLoading(true);\n`;
+    code += `        const data = await ApiService.${listFn}_0();\n`;
+    code += `        setItems(Array.isArray(data) ? data : []);\n`;
+    code += `      } catch (err: any) {\n`;
+    code += `        setError(err.message || 'Failed to load data');\n`;
+    code += `      } finally {\n`;
+    code += `        setLoading(false);\n`;
+    code += `      }\n`;
+    code += `    }\n`;
+    code += `    fetchData();\n`;
+    code += `  }, []);\n`;
+  }
+  
+  // Form submit handler
+  if (hasForm) {
+    const postRoute = postRoutes[0]!;
+    const postFn = postRoute.route.replace(/[^a-zA-Z0-9]+/g, '_').replace(/^_+|_+$/g, '') || 'createItem';
+    code += `\n  const handleSubmit = async (e: React.FormEvent) => {\n`;
+    code += `    e.preventDefault();\n`;
+    code += `    setSubmitting(true);\n`;
+    code += `    try {\n`;
+    code += `      const payload = { ${formFields.map(f => snakeToCamel(f)).join(', ')} };\n`;
+    code += `      await ApiService.${postFn}_0(payload);\n`;
+    code += `      setShowForm(false);\n`;
+    const resetLines = formFields.map(f => `      set${snakeToPascal(f)}('');`);
+    code += resetLines.join('\n') + '\n';
+    code += `      // Refresh data\n`;
+    code += `      window.location.reload();\n`;
+    code += `    } catch (err: any) {\n`;
+    code += `      setError(err.message || 'Failed to submit');\n`;
+    code += `    } finally {\n`;
+    code += `      setSubmitting(false);\n`;
+    code += `    }\n`;
+    code += `  };\n`;
+  }
+  
+  // Render
+  code += `\n  return (\n`;
+  code += `    <div className="space-y-6">\n`;
+  
+  // Header
+  code += `      <div className="flex items-center justify-between">\n`;
+  code += `        <div>\n`;
+  code += `          <h1 className="text-2xl font-bold" style={{ color: '${theme.secondary}' }}>${screenMapping.screen}</h1>\n`;
+  code += `          <p className="text-sm opacity-70 mt-1">Manage ${primaryEntity} records</p>\n`;
+  code += `        </div>\n`;
+  if (hasForm) {
+    code += `        <button\n`;
+    code += `          onClick={() => setShowForm(!showForm)}\n`;
+    code += `          className="px-4 py-2 rounded-lg text-white text-sm font-semibold transition-colors"\n`;
+    code += `          style={{ backgroundColor: '${theme.primary}' }}\n`;
+    code += `        >\n`;
+    code += `          {showForm ? 'Cancel' : '+ New ${entityPascal}'}\n`;
+    code += `        </button>\n`;
+  }
+  code += `      </div>\n\n`;
+  
+  // Error state
+  code += `      {error && (\n`;
+  code += `        <div className="p-4 rounded-lg border" style={{ borderColor: '${theme.accent}', backgroundColor: '${theme.accent}15' }}>\n`;
+  code += `          <p className="text-sm" style={{ color: '${theme.accent}' }}>{error}</p>\n`;
+  code += `        </div>\n`;
+  code += `      )}\n\n`;
+  
+  // Form
+  if (hasForm) {
+    code += `      {showForm && (\n`;
+    code += `        <form onSubmit={handleSubmit} className="p-6 rounded-xl border space-y-4" style={{ borderColor: '${theme.primary}30', backgroundColor: '${theme.dark}' }}>\n`;
+    code += `          <h3 className="text-lg font-semibold" style={{ color: '${theme.secondary}' }}>Create New ${entityPascal}</h3>\n`;
+    for (const field of formFields) {
+      const camel = snakeToCamel(field);
+      const label = field.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+      code += `          <div>\n`;
+      code += `            <label className="block text-sm font-medium mb-1 opacity-80">${label}</label>\n`;
+      code += `            <input\n`;
+      code += `              type="text"\n`;
+      code += `              value={${camel}}\n`;
+      code += `              onChange={(e) => set${snakeToPascal(field)}(e.target.value)}\n`;
+      code += `              className="w-full px-3 py-2 rounded-lg border bg-transparent"\n`;
+      code += `              style={{ borderColor: '${theme.primary}40' }}\n`;
+      code += `              placeholder="Enter ${label.toLowerCase()}"\n`;
+      code += `              required\n`;
+      code += `            />\n`;
+      code += `          </div>\n`;
+    }
+    code += `          <button\n`;
+    code += `            type="submit"\n`;
+    code += `            disabled={submitting}\n`;
+    code += `            className="px-6 py-2 rounded-lg text-white font-semibold disabled:opacity-50"\n`;
+    code += `            style={{ backgroundColor: '${theme.primary}' }}\n`;
+    code += `          >\n`;
+    code += `            {submitting ? 'Creating...' : 'Create ${entityPascal}'}\n`;
+    code += `          </button>\n`;
+    code += `        </form>\n`;
+    code += `      )}\n\n`;
+  }
+  
+  // Loading state
+  code += `      {loading ? (\n`;
+  code += `        <div className="flex items-center justify-center py-16">\n`;
+  code += `          <div className="animate-spin rounded-full h-8 w-8 border-b-2" style={{ borderColor: '${theme.primary}' }} />\n`;
+  code += `        </div>\n`;
+  code += `      ) : items.length === 0 ? (\n`;
+  code += `        <div className="text-center py-16 opacity-60">\n`;
+  code += `          <p className="text-lg">No ${primaryEntity} found</p>\n`;
+  code += `          <p className="text-sm mt-1">Create your first ${primaryEntity} to get started.</p>\n`;
+  code += `        </div>\n`;
+  code += `      ) : (\n`;
+  code += `        <div className="overflow-x-auto rounded-xl border" style={{ borderColor: '${theme.primary}20' }}>\n`;
+  code += `          <table className="w-full text-sm">\n`;
+  code += `            <thead>\n`;
+  code += `              <tr style={{ backgroundColor: '${theme.primary}10' }}>\n`;
+  // Table headers from entity columns
+  const entityTable = ([] as DatabaseTableSpec[]).concat(/* placeholder */)[0];
+  code += `                {items[0] && Object.keys(items[0]).slice(0, 6).map(key => (\n`;
+  code += `                  <th key={key} className="px-4 py-3 text-left font-semibold uppercase tracking-wider text-xs opacity-70">\n`;
+  code += `                    {key.replace(/_/g, ' ')}\n`;
+  code += `                  </th>\n`;
+  code += `                ))}\n`;
+  code += `              </tr>\n`;
+  code += `            </thead>\n`;
+  code += `            <tbody>\n`;
+  code += `              {items.map((item, idx) => (\n`;
+  code += `                <tr key={item.id || idx} className="border-t transition-colors hover:opacity-80" style={{ borderColor: '${theme.primary}10' }}>\n`;
+  code += `                  {Object.values(item).slice(0, 6).map((val: any, i) => (\n`;
+  code += `                    <td key={i} className="px-4 py-3">{typeof val === 'object' ? JSON.stringify(val) : String(val ?? '')}</td>\n`;
+  code += `                  ))}\n`;
+  code += `                </tr>\n`;
+  code += `              ))}\n`;
+  code += `            </tbody>\n`;
+  code += `          </table>\n`;
+  code += `        </div>\n`;
+  code += `      )}\n`;
+  code += `    </div>\n`;
+  code += `  );\n`;
+  code += `}\n`;
+  
+  return code;
+}
+
+/** Call the backend per-file codegen endpoint */
+async function callCodegenEndpoint(requestBody: Record<string, unknown>): Promise<string> {
+  const candidates = [
+    process.env['BACKEND_URL']?.replace(/\/+$/, ''),
+    'http://127.0.0.1:8000',
+  ].filter(Boolean) as string[];
+  
+  for (const url of candidates) {
+    try {
+      const res = await fetch(`${url}/api/codegen/generate-file`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(requestBody),
+      });
+      if (!res.ok) continue;
+      const data = await res.json();
+      return data.code || '';
+    } catch {
+      continue;
+    }
+  }
+  throw new Error('All backend candidates failed for codegen');
+}
+
 export function generateProjectSetupFallback(
   blueprint: Blueprint,
   _profile?: StudentProfile | null,
@@ -1961,11 +2486,67 @@ export function generateBackendEngineFallback(
 ): GeneratedCodeFile[] {
   const title = blueprint.title || "Production Software Platform";
   const slug = title.toLowerCase().replace(/[^a-z0-9]+/g, "_");
+  const tables = contract.databaseSchema?.tables || [];
+  const routes = contract.apiRoutes || [];
+  const screens = contract.screenMappings || [];
 
-  // Format requirements.txt directly from approved backend dependencies
+  // Build requirements.txt from approved dependencies
   const requirementsTxt = setupSpec.backendDependencies
     .map((dep) => `${dep.name}${dep.version.startsWith(">=") || dep.version.startsWith("==") ? dep.version : `==${dep.version.replace(/^\^/, "")}`}`)
     .join("\n");
+
+  // Generate REAL models from contract DDL tables
+  const modelsCode = tables.length > 0
+    ? generateModelsFromContract(tables, title)
+    : `"""${title} — SQLAlchemy ORM Models."""\nfrom sqlalchemy import Column, String, Integer, DateTime, Text\nfrom sqlalchemy.sql import func\nfrom backend.app.database import Base\n\nclass BaseEntity(Base):\n    __tablename__ = "base_entities"\n    id = Column(Integer, primary_key=True, autoincrement=True)\n    name = Column(String(255), nullable=False)\n    description = Column(Text, nullable=True)\n    created_at = Column(DateTime(timezone=True), server_default=func.now())\n`;
+
+  // Generate REAL schemas from contract routes
+  const schemasCode = tables.length > 0
+    ? generateSchemasFromContract(tables, routes, title)
+    : `"""${title} — Pydantic v2 Schemas."""\nfrom pydantic import BaseModel, ConfigDict, Field\nfrom typing import Optional, List\nfrom datetime import datetime\n\nclass HealthResponse(BaseModel):\n    status: str = "healthy"\n    app: str = "${title}"\n\nclass TokenResponse(BaseModel):\n    access_token: str\n    token_type: str = "bearer"\n`;
+
+  // Generate per-screen routers with REAL CRUD logic
+  const routerFiles: GeneratedCodeFile[] = [];
+  if (screens.length > 0) {
+    for (const screen of screens) {
+      const routerCode = generateRouterForScreen(screen, routes, tables);
+      if (routerCode) {
+        const screenSlug = screen.screen.toLowerCase().replace(/[^a-z0-9]+/g, '_');
+        routerFiles.push({
+          path: `backend/app/routers/${screenSlug}.py`,
+          language: "python",
+          description: `${screen.screen} — API router with CRUD operations`,
+          code: routerCode,
+          layer: "backend",
+        });
+      }
+    }
+  }
+
+  // If no screen-specific routers generated, create a combined router from all routes
+  if (routerFiles.length === 0) {
+    const allRouterCode = `"""${title} — Combined API Router."""\nfrom fastapi import APIRouter, Depends, HTTPException, status\nfrom typing import List, Any\nfrom backend.app.schemas import HealthResponse\n\nrouter = APIRouter(tags=["API Operations"])\n\n@router.get("/health", response_model=HealthResponse)\nasync def health_check():\n    return HealthResponse()\n\n${routes.map((r, i) => {
+      const fnName = r.route.replace(/[^a-zA-Z0-9]+/g, "_").replace(/^_+|_+$/g, "");
+      return `@router.${r.method.toLowerCase()}("${r.route.replace(/^(\/api\/v1)?/, "") || "/"}", tags=["${r.screenName}"])\nasync def ${fnName}_${i}():\n    """${r.summary}"""\n    return ${r.responsePayload || `{"status": "ok", "message": "${r.summary}"}`}\n`;
+    }).join("\n")}\n`;
+    routerFiles.push({
+      path: "backend/app/routers/api.py",
+      language: "python",
+      description: "Combined API router with all endpoints",
+      code: allRouterCode,
+      layer: "backend",
+    });
+  }
+
+  // Generate main.py that imports all routers
+  const routerImports = routerFiles.map(f => {
+    const name = f.path.split('/').pop()?.replace('.py', '') || 'api';
+    return `from backend.app.routers.${name} import router as ${name}_router`;
+  }).join('\n');
+  const routerMounts = routerFiles.map(f => {
+    const name = f.path.split('/').pop()?.replace('.py', '') || 'api';
+    return `app.include_router(${name}_router, prefix="/api/v1")`;
+  }).join('\n');
 
   const files: GeneratedCodeFile[] = [
     {
@@ -1999,27 +2580,25 @@ export function generateBackendEngineFallback(
       layer: "backend",
     },
     {
-      path: "backend/app/schemas.py",
-      language: "python",
-      description: "Pydantic v2 schemas mirroring the REST API contract",
-      code: `from pydantic import BaseModel, ConfigDict, Field\nfrom typing import Optional, List\nfrom datetime import datetime\n\nclass HealthResponse(BaseModel):\n    status: str = "healthy"\n    app: str = "${title}"\n    timestamp: datetime = Field(default_factory=datetime.utcnow)\n\nclass TokenResponse(BaseModel):\n    access_token: str\n    token_type: str = "bearer"\n\nclass GenericItemCreate(BaseModel):\n    title: str\n    description: Optional[str] = None\n\nclass GenericItemResponse(BaseModel):\n    id: str\n    title: str\n    description: Optional[str] = None\n    created_at: datetime\n\n    model_config = ConfigDict(from_attributes=True)\n`,
-      layer: "backend",
-    },
-    {
       path: "backend/app/models.py",
       language: "python",
-      description: "SQLAlchemy ORM models mapped to database schema",
-      code: `from sqlalchemy import Column, String, Integer, Float, Boolean, DateTime, Text, ForeignKey\nfrom sqlalchemy.sql import func\nfrom backend.app.database import Base\n\nclass AuditLog(Base):\n    __tablename__ = "audit_logs"\n\n    id = Column(String(36), primary_key=True, index=True)\n    action = Column(String(255), nullable=False)\n    actor = Column(String(255), nullable=True)\n    details = Column(Text, nullable=True)\n    created_at = Column(DateTime(timezone=True), server_default=func.now())\n`,
+      description: "SQLAlchemy ORM models generated from contract database schema",
+      code: modelsCode,
       layer: "backend",
     },
     {
-      path: "backend/app/routers/api.py",
+      path: "backend/app/schemas.py",
       language: "python",
-      description: "FastAPI APIRouter containing feature endpoints",
-      code: `from fastapi import APIRouter, Depends, HTTPException, status\nfrom typing import List, Any\nfrom backend.app.schemas import HealthResponse, GenericItemResponse, GenericItemCreate\n\nrouter = APIRouter(tags=["API Operations"])\n\n@router.get("/health", response_model=HealthResponse)\nasync def health_check():\n    return HealthResponse()\n\n${contract.apiRoutes.map((r, i) => {
-        const fnName = r.route.replace(/[^a-zA-Z0-9]+/g, "_").replace(/^_+|_+$/g, "");
-        return `@router.${r.method.toLowerCase()}("${r.route.replace(/^(\/api\/v1)?/, "") || "/"}", tags=["${r.screenName}"])\nasync def ${fnName}_${i}():\n    """${r.summary}"""\n    return ${r.responsePayload || `{"status": "ok", "message": "${r.summary}"}`}\n`;
-      }).join("\n")}\n`,
+      description: "Pydantic v2 schemas generated from contract API routes",
+      code: schemasCode,
+      layer: "backend",
+    },
+    ...routerFiles,
+    {
+      path: "backend/app/main.py",
+      language: "python",
+      description: "FastAPI server entry point with CORS and all routers mounted",
+      code: `from fastapi import FastAPI\nfrom fastapi.middleware.cors import CORSMiddleware\nfrom backend.app.config import settings\nfrom backend.app.schemas import HealthResponse\n${routerImports}\n\napp = FastAPI(\n    title=settings.APP_NAME,\n    version="1.0.0",\n    description="Production API for ${title}"\n)\n\napp.add_middleware(\n    CORSMiddleware,\n    allow_origins=["*"],\n    allow_credentials=True,\n    allow_methods=["*"],\n    allow_headers=["*"],\n)\n\n${routerMounts}\n\n@app.get("/health", response_model=HealthResponse, tags=["System"])\nasync def root_health():\n    return HealthResponse()\n`,
       layer: "backend",
     },
     {
@@ -2030,37 +2609,30 @@ export function generateBackendEngineFallback(
       layer: "backend",
     },
     {
-      path: "backend/app/main.py",
-      language: "python",
-      description: "FastAPI server entry point with CORS and API router mounting",
-      code: `from fastapi import FastAPI\nfrom fastapi.middleware.cors import CORSMiddleware\nfrom backend.app.config import settings\nfrom backend.app.schemas import HealthResponse\nfrom backend.app.routers.api import router as api_router\n\napp = FastAPI(\n    title=settings.APP_NAME,\n    version="1.0.0",\n    description="Autonomous production API for ${title}"\n)\n\napp.add_middleware(\n    CORSMiddleware,\n    allow_origins=["*"],\n    allow_credentials=True,\n    allow_methods=["*"],\n    allow_headers=["*"],\n)\n\napp.include_router(api_router, prefix="/api/v1")\n\n@app.get("/health", response_model=HealthResponse, tags=["System"])\nasync def root_health():\n    return HealthResponse()\n`,
-      layer: "backend",
-    },
-    {
       path: "database/schema.sql",
       language: "sql",
-      description: "PostgreSQL DDL schema matching the Backend Contract",
+      description: "PostgreSQL DDL schema from the Backend Contract",
       code: contract.databaseSchema.rawSqlDdl,
       layer: "database",
     },
     {
       path: "database/seed.sql",
       language: "sql",
-      description: "Initial seed records for testing workflows immediately",
-      code: `-- Initial Seed Data for ${title}\nINSERT INTO candidates (full_name, github_url, match_score) VALUES\n('Aarav Patel', 'https://github.com/aarav/project', 94.5),\n('Meera Sharma', 'https://github.com/meera/engine', 91.2)\nON CONFLICT DO NOTHING;\n`,
+      description: "Initial seed records for development and testing",
+      code: `-- Seed Data for ${title}\n${tables.map(t => `-- Seed for ${t.tableName}\nINSERT INTO ${t.tableName} (${t.columns.filter(c => !c.isPrimary && c.name !== 'created_at' && c.name !== 'updated_at').map(c => c.name).join(', ')}) VALUES\n(${t.columns.filter(c => !c.isPrimary && c.name !== 'created_at' && c.name !== 'updated_at').map(c => sqlTypeToPydantic(c.type) === 'str' ? "'sample_value'" : sqlTypeToPydantic(c.type) === 'int' ? '1' : sqlTypeToPydantic(c.type) === 'bool' ? 'true' : sqlTypeToPydantic(c.type) === 'float' ? '0.0' : "'{}'").join(', ')})\nON CONFLICT DO NOTHING;\n`).join('\n')}`,
       layer: "database",
     },
     {
       path: ".env.example",
       language: "bash",
-      description: "Environment configuration template matching the Setup Inspector",
+      description: "Environment configuration template",
       code: setupSpec.environmentVariables.map((v) => `# ${v.purpose}\n${v.key}=${v.example}`).join("\n\n"),
       layer: "root",
     },
     {
       path: "docker-compose.yml",
       language: "yaml",
-      description: "Multi-container Docker orchestration for PostgreSQL and Backend",
+      description: "Multi-container Docker orchestration",
       code: `version: '3.8'\n\nservices:\n  db:\n    image: postgres:16-alpine\n    container_name: ${slug}_db\n    environment:\n      POSTGRES_DB: ${slug}_db\n      POSTGRES_USER: postgres\n      POSTGRES_PASSWORD: postgres\n    ports:\n      - "5432:5432"\n    volumes:\n      - pgdata:/var/lib/postgresql/data\n      - ./database/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro\n      - ./database/seed.sql:/docker-entrypoint-initdb.d/02-seed.sql:ro\n\n  backend:\n    build: \n      context: .\n      dockerfile: backend/Dockerfile\n    container_name: ${slug}_backend\n    command: uvicorn backend.app.main:app --host 0.0.0.0 --port 8000 --reload\n    ports:\n      - "8000:8000"\n    environment:\n      DATABASE_URL: postgresql+asyncpg://postgres:postgres@db:5432/${slug}_db\n    depends_on:\n      - db\n\nvolumes:\n  pgdata:\n`,
       layer: "root",
     },
@@ -2079,53 +2651,110 @@ export const generateBackendEngine = createServerFn({ method: "POST" })
   )
   .handler(async ({ data }) => {
     const fallback = generateBackendEngineFallback(data.blueprint, data.contract, data.setupSpec);
+    const title = data.blueprint.title || "Production Software Platform";
+    const tables = data.contract.databaseSchema?.tables || [];
+    const routes = data.contract.apiRoutes || [];
+    const screens = data.contract.screenMappings || [];
 
+    // Try chunked per-file generation using the codegen endpoint
+    try {
+      const generatedFiles: GeneratedCodeFile[] = [...fallback]; // Start from enriched fallback
+      const existingFiles: Record<string, string> = {};
+      
+      // Build approved deps list
+      const approvedDeps = data.setupSpec.backendDependencies
+        .map((d) => ({ name: d.name, purpose: d.purpose }))
+        .slice(0, 15);
+
+      // Define which files to enhance via AI (the ones that benefit most)
+      const filesToEnhance = [
+        { path: 'backend/app/models.py', purpose: 'SQLAlchemy ORM models for all database tables with relationships, indexes, and computed properties' },
+        { path: 'backend/app/schemas.py', purpose: 'Pydantic v2 request/response schemas with validation, field constraints, and examples' },
+      ];
+      
+      // Add per-screen routers
+      for (const screen of screens) {
+        const screenSlug = screen.screen.toLowerCase().replace(/[^a-z0-9]+/g, '_');
+        filesToEnhance.push({
+          path: `backend/app/routers/${screenSlug}.py`,
+          purpose: `Complete CRUD API router for ${screen.screen} screen with DB queries, auth, validation, and error handling`,
+        });
+      }
+      
+      filesToEnhance.push({ 
+        path: 'backend/app/main.py', 
+        purpose: 'FastAPI application entry point importing all routers with CORS, middleware, and health checks' 
+      });
+
+      // Generate each file via the codegen endpoint
+      for (const fileSpec of filesToEnhance) {
+        try {
+          const screenContext = screens.find(s => fileSpec.path.includes(s.screen.toLowerCase().replace(/[^a-z0-9]+/g, '_')));
+          const fileRoutes = screenContext 
+            ? routes.filter(r => r.screenName === screenContext.screen)
+            : routes;
+          
+          const code = await callCodegenEndpoint({
+            file_path: fileSpec.path,
+            file_purpose: fileSpec.purpose,
+            project_title: title,
+            blueprint_summary: data.blueprint.overview?.proposedSolution || '',
+            db_schema_ddl: data.contract.databaseSchema.rawSqlDdl,
+            api_routes: fileRoutes.map(r => ({
+              method: r.method,
+              route: r.route,
+              summary: r.summary,
+              authRequired: r.authRequired,
+              requestPayload: r.requestPayload,
+              responsePayload: r.responsePayload,
+            })),
+            approved_dependencies: approvedDeps,
+            existing_files: existingFiles,
+            screen_context: screenContext || undefined,
+            mvp_features: data.blueprint.features?.slice(0, 4).map(f => ({
+              name: typeof f === 'object' ? (f as any).name || (f as any).title || String(f) : String(f),
+              detail: typeof f === 'object' ? (f as any).description || (f as any).detail || '' : '',
+            })),
+          });
+
+          if (code && code.length > 50) {
+            // Replace the fallback version with AI-generated version
+            const idx = generatedFiles.findIndex(f => f.path === fileSpec.path);
+            const newFile: GeneratedCodeFile = {
+              path: fileSpec.path,
+              language: 'python',
+              description: fileSpec.purpose,
+              code,
+              layer: 'backend',
+            };
+            if (idx >= 0) {
+              generatedFiles[idx] = newFile;
+            } else {
+              generatedFiles.push(newFile);
+            }
+            existingFiles[fileSpec.path] = code;
+          }
+        } catch (fileErr) {
+          console.warn(`Chunked codegen failed for ${fileSpec.path}, keeping fallback:`, fileErr);
+          // Keep the enriched fallback version
+        }
+      }
+
+      return generatedFiles;
+    } catch (err) {
+      console.warn("Chunked backend codegen failed entirely, returning enriched fallback:", err);
+    }
+
+    // If chunked generation fails, try the legacy single-shot approach
     try {
       const approvedPackagesList = data.setupSpec.backendDependencies
         .map((d) => `- ${d.name} (${d.version}): ${d.purpose}`)
         .join("\n");
 
-      const prompt = `You are a Principal Backend Engineer generating Engine 1 (Backend & Database) for: "${data.blueprint.title}".
-
-=== CRITICAL CONTRACT: APPROVED BACKEND DEPENDENCIES ===
-You may ONLY import from the following student-approved packages:
-${approvedPackagesList}
-STRICT RULE: Do NOT import any third-party library not listed above.
-
-=== DATABASE CONTRACT ===
-${data.contract.databaseSchema.rawSqlDdl}
-
-=== REST API ENDPOINTS CONTRACT ===
-${JSON.stringify(data.contract.apiRoutes, null, 2)}
-
-=== ENVIRONMENT VARIABLES ===
-${data.setupSpec.environmentVariables.map((v) => `${v.key}=${v.example}`).join("\n")}
-
-Generate complete, production-grade, interconnected backend source code files implementing this entire specification.
-Format each file with the standard delimiter:
-=== FILE: path/to/file.ext ===
-[Source code here without markdown fences]
-=== END FILE ===
-
-Required files:
-1. backend/${data.setupSpec.backendManifestName}
-2. backend/app/config.py
-3. backend/app/database.py
-4. backend/app/models.py
-5. backend/app/schemas.py
-6. backend/app/routers/api.py
-7. backend/app/main.py
-8. database/schema.sql
-9. database/seed.sql
-10. .env.example
-11. docker-compose.yml
-
-Begin generating backend files now:`;
+      const prompt = `You are a Principal Backend Engineer generating complete backend code for: "${title}".\n\n=== APPROVED DEPENDENCIES ===\n${approvedPackagesList}\n\n=== DATABASE SCHEMA ===\n${data.contract.databaseSchema.rawSqlDdl}\n\n=== API ENDPOINTS ===\n${JSON.stringify(routes, null, 2)}\n\nGenerate complete, production-grade backend source code files.\nFormat: === FILE: path === ... === END FILE ===\n\nRequired: models.py, schemas.py, routers, main.py, config.py, database.py\nWrite COMPLETE code — no stubs, no TODOs.`;
 
       const codeText = await generateText({
-        system:
-          "You are a Senior Backend Systems Engineer. " +
-          "You output complete, runnable code files strictly matching the provided database and API contracts.",
+        system: "You are a Senior Backend Systems Engineer. Output complete, runnable code files.",
         prompt,
         temperature: 0.2,
         maxTokens: 8192,
@@ -2134,14 +2763,13 @@ Begin generating backend files now:`;
 
       const parsed = parseDelimitedCodeFiles(codeText);
       if (parsed.length >= 2) {
-        // Merge AI-generated files on top of fallback files so no baseline config is ever lost
         const fileMap = new Map<string, GeneratedCodeFile>();
         fallback.forEach((f) => fileMap.set(f.path, f));
         parsed.forEach((f) => fileMap.set(f.path, f));
         return Array.from(fileMap.values());
       }
     } catch (err) {
-      console.warn("generateBackendEngine error, falling back to local synthesizer:", err);
+      console.warn("Legacy single-shot backend engine also failed:", err);
     }
 
     return fallback;
@@ -2155,6 +2783,9 @@ export function generateFrontendEngineFallback(
 ): GeneratedCodeFile[] {
   const title = blueprint.title || "Production Software Platform";
   const slug = title.toLowerCase().replace(/[^a-z0-9]+/g, "-");
+  const screens = contract.screenMappings || [];
+  const routes = contract.apiRoutes || [];
+  const theme = resolveThemePalette(selectedTheme);
 
   const packageJsonContent = JSON.stringify(
     {
@@ -2178,6 +2809,40 @@ export function generateFrontendEngineFallback(
     2
   );
 
+  // Generate page components for each screen
+  const pageFiles: GeneratedCodeFile[] = screens.map(screen => {
+    const componentName = snakeToPascal(screen.screen.replace(/[^a-zA-Z0-9]+/g, '_'));
+    const code = generatePageComponentForScreen(screen, routes, theme, title);
+    return {
+      path: `frontend/src/pages/${componentName}.tsx`,
+      language: "typescript",
+      description: `${screen.screen} page with data fetching, forms, and ${selectedTheme} theme styling`,
+      code,
+      layer: "frontend" as const,
+    };
+  });
+
+  // Generate API client with typed functions
+  const apiClientCode = `import axios from 'axios';\n\nexport const apiClient = axios.create({\n  baseURL: import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000',\n  headers: { 'Content-Type': 'application/json' },\n});\n\napiClient.interceptors.request.use((config) => {\n  const token = localStorage.getItem('auth_token');\n  if (token) config.headers.Authorization = \`Bearer \${token}\`;\n  return config;\n});\n\napiClient.interceptors.response.use(\n  (response) => response,\n  (error) => {\n    console.error('API Error:', error.response?.data || error.message);\n    return Promise.reject(error);\n  }\n);\n\nexport const ApiService = {\n  getHealth: () => apiClient.get('/api/v1/health').then(r => r.data),\n${routes.map((r, i) => {
+    const fnName = r.route.replace(/[^a-zA-Z0-9]+/g, "_").replace(/^_+|_+$/g, "");
+    const method = r.method.toLowerCase();
+    return `  ${fnName}_${i}: (data?: any) => apiClient.${method}('${r.route}'${method !== 'get' ? ', data' : ''}).then(r => r.data),`;
+  }).join("\n")}\n};\n`;
+
+  // Generate App with router matching screens
+  const pageImports = screens.map(s => {
+    const name = snakeToPascal(s.screen.replace(/[^a-zA-Z0-9]+/g, '_'));
+    return `import ${name} from './pages/${name}';`;
+  }).join('\n');
+
+  const navItems = screens.map(s => `'${s.screen.toLowerCase()}'`).join(', ');
+  const pageRendering = screens.map(s => {
+    const name = snakeToPascal(s.screen.replace(/[^a-zA-Z0-9]+/g, '_'));
+    return `        {activeTab === '${s.screen.toLowerCase()}' && <${name} />}`;
+  }).join('\n');
+
+  const appCode = `import React, { useState } from 'react';\n${pageImports}\n\nexport default function App() {\n  const [activeTab, setActiveTab] = useState('${screens[0]?.screen.toLowerCase() || 'dashboard'}');\n\n  return (\n    <div className="min-h-screen flex flex-col" style={{ backgroundColor: '${theme.dark}', color: '${theme.secondary}' }}>\n      <header className="border-b px-6 py-4 flex items-center justify-between" style={{ borderColor: '${theme.primary}20', backgroundColor: '${theme.dark}' }}>\n        <div className="flex items-center gap-3">\n          <div className="size-9 rounded-xl flex items-center justify-center font-bold text-white shadow-lg" style={{ backgroundColor: '${theme.primary}' }}>\n            {"${title}".charAt(0)}\n          </div>\n          <div>\n            <h1 className="font-bold text-base leading-tight" style={{ color: '${theme.secondary}' }}>${title}</h1>\n            <p className="text-xs opacity-60">Theme: ${selectedTheme}</p>\n          </div>\n        </div>\n        <nav className="flex items-center gap-1 p-1 rounded-xl text-xs font-semibold" style={{ backgroundColor: '${theme.primary}15' }}>\n          {[${navItems}].map(tab => (\n            <button\n              key={tab}\n              onClick={() => setActiveTab(tab)}\n              className={\`px-3 py-1.5 rounded-lg capitalize transition-colors \${activeTab === tab ? 'text-white' : 'opacity-60 hover:opacity-100'}\`}\n              style={activeTab === tab ? { backgroundColor: '${theme.primary}' } : {}}\n            >\n              {tab}\n            </button>\n          ))}\n        </nav>\n      </header>\n      <main className="flex-1 p-6 max-w-6xl mx-auto w-full">\n${pageRendering}\n      </main>\n    </div>\n  );\n}\n`;
+
   const files: GeneratedCodeFile[] = [
     {
       path: "frontend/package.json",
@@ -2189,40 +2854,37 @@ export function generateFrontendEngineFallback(
     {
       path: "frontend/vite.config.ts",
       language: "typescript",
-      description: "Vite bundler configuration with React and Tailwind support",
+      description: "Vite bundler configuration with React and proxy",
       code: `import { defineConfig } from 'vite';\nimport react from '@vitejs/plugin-react';\n\nexport default defineConfig({\n  plugins: [react()],\n  server: {\n    port: 5173,\n    proxy: {\n      '/api': {\n        target: process.env.VITE_API_BASE_URL || 'http://localhost:8000',\n        changeOrigin: true,\n      }\n    }\n  }\n});\n`,
       layer: "frontend",
     },
     {
       path: "frontend/index.html",
       language: "html",
-      description: "HTML5 entry document mounting the React root",
-      code: `<!DOCTYPE html>\n<html lang="en">\n  <head>\n    <meta charset="UTF-8" />\n    <meta name="viewport" content="width=device-width, initial-scale=1.0" />\n    <title>${title}</title>\n  </head>\n  <body class="bg-slate-950 text-slate-100 antialiased">\n    <div id="root"></div>\n    <script type="module" src="/src/main.tsx"></script>\n  </body>\n</html>\n`,
+      description: "HTML5 entry document",
+      code: `<!DOCTYPE html>\n<html lang="en">\n  <head>\n    <meta charset="UTF-8" />\n    <meta name="viewport" content="width=device-width, initial-scale=1.0" />\n    <title>${title}</title>\n    <link rel="preconnect" href="https://fonts.googleapis.com">\n    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">\n  </head>\n  <body style="background-color: ${theme.dark}; color: ${theme.secondary}" class="antialiased">\n    <div id="root"></div>\n    <script type="module" src="/src/main.tsx"></script>\n  </body>\n</html>\n`,
       layer: "frontend",
     },
     {
       path: "frontend/src/index.css",
       language: "css",
-      description: `Tailwind CSS styles configured for the ${selectedTheme} theme aesthetic`,
-      code: `@import "tailwindcss";\n\n@layer base {\n  body {\n    font-family: system-ui, -apple-system, sans-serif;\n    background-color: #090d16;\n    color: #f1f5f9;\n  }\n}\n`,
+      description: `Tailwind CSS styles with ${selectedTheme} theme colors`,
+      code: `@import "tailwindcss";\n\n:root {\n  --color-primary: ${theme.primary};\n  --color-secondary: ${theme.secondary};\n  --color-accent: ${theme.accent};\n  --color-dark: ${theme.dark};\n}\n\n@layer base {\n  body {\n    font-family: 'Inter', system-ui, -apple-system, sans-serif;\n    background-color: var(--color-dark);\n    color: var(--color-secondary);\n  }\n  h1, h2, h3, h4, h5, h6 {\n    font-family: 'Space Grotesk', system-ui, sans-serif;\n  }\n}\n`,
       layer: "frontend",
     },
     {
       path: "frontend/src/api/client.ts",
       language: "typescript",
-      description: "Axios API client connecting to backend endpoints with type safety",
-      code: `import axios from 'axios';\n\nexport const apiClient = axios.create({\n  baseURL: import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000',\n  headers: {\n    'Content-Type': 'application/json',\n  },\n});\n\napiClient.interceptors.response.use(\n  (response) => response,\n  (error) => {\n    console.error('API Error:', error.response?.data || error.message);\n    return Promise.reject(error);\n  }\n);\n\nexport const ApiService = {\n  getHealth: () => apiClient.get('/api/v1/health').then(r => r.data),\n${contract.apiRoutes.map((r, i) => {
-        const fnName = r.route.replace(/[^a-zA-Z0-9]+/g, "_").replace(/^_+|_+$/g, "");
-        const method = r.method.toLowerCase();
-        return `  ${fnName}_${i}: (data?: any) => apiClient.${method}('${r.route}', data).then(r => r.data),`;
-      }).join("\n")}\n};\n`,
+      description: "Typed API client with auth interceptors",
+      code: apiClientCode,
       layer: "frontend",
     },
+    ...pageFiles,
     {
       path: "frontend/src/App.tsx",
       language: "typescript",
-      description: "Main application shell with navigation tabs and theme layout",
-      code: `import React, { useState } from 'react';\nimport { Layers, Database, Shield, Zap, Terminal } from 'lucide-react';\n\nexport default function App() {\n  const [activeTab, setActiveTab] = useState('dashboard');\n\n  return (\n    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col">\n      <header className="border-b border-slate-800 bg-slate-900/50 backdrop-blur px-6 py-4 flex items-center justify-between">\n        <div className="flex items-center gap-3">\n          <div className="size-9 rounded-xl bg-blue-600 flex items-center justify-center font-bold text-white shadow-lg shadow-blue-500/20">\n            Y\n          </div>\n          <div>\n            <h1 className="font-bold text-base leading-tight text-white">${title}</h1>\n            <p className="text-xs text-slate-400">Theme: ${selectedTheme} • Connected to Backend API</p>\n          </div>\n        </div>\n        <nav className="flex items-center gap-1 bg-slate-800/80 p-1 rounded-xl text-xs font-semibold">\n          {['dashboard', 'screener', 'settings'].map(tab => (\n            <button\n              key={tab}\n              onClick={() => setActiveTab(tab)}\n              className={\`px-3 py-1.5 rounded-lg capitalize transition-colors \${activeTab === tab ? 'bg-blue-600 text-white' : 'text-slate-400 hover:text-white'}\`}\n            >\n              {tab}\n            </button>\n          ))}\n        </nav>\n      </header>\n      <main className="flex-1 p-6 max-w-6xl mx-auto w-full">\n        <div className="rounded-2xl border border-slate-800 bg-slate-900/40 p-8 text-center space-y-4">\n          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-blue-500/10 text-blue-400 text-xs font-mono font-semibold">\n            <Zap className="size-3.5" /> Two-Engine Production Suite Ready\n          </span>\n          <h2 className="text-2xl font-bold text-white">Full-Stack Application Grounded & Runnable</h2>\n          <p className="text-sm text-slate-400 max-w-xl mx-auto">\n            Built with approved dependencies. Run <code>npm run dev</code> in frontend and <code>uvicorn</code> in backend to begin.\n          </p>\n        </div>\n      </main>\n    </div>\n  );\n}\n`,
+      description: `Application shell with ${screens.length} page navigation and ${selectedTheme} theme`,
+      code: appCode,
       layer: "frontend",
     },
     {
@@ -2235,38 +2897,15 @@ export function generateFrontendEngineFallback(
     {
       path: "frontend/tsconfig.json",
       language: "json",
-      description: "TypeScript compiler options for Vite React project",
-      code: JSON.stringify(
-        {
-          compilerOptions: {
-            target: "ES2020",
-            useDefineForClassFields: true,
-            lib: ["ES2020", "DOM", "DOM.Iterable"],
-            module: "ESNext",
-            skipLibCheck: true,
-            moduleResolution: "bundler",
-            allowImportingTsExtensions: true,
-            resolveJsonModule: true,
-            isolatedModules: true,
-            noEmit: true,
-            jsx: "react-jsx",
-            strict: true,
-            noUnusedLocals: false,
-            noUnusedParameters: false,
-            noFallthroughCasesInSwitch: true,
-          },
-          include: ["src"],
-        },
-        null,
-        2
-      ),
+      description: "TypeScript compiler configuration",
+      code: JSON.stringify({ compilerOptions: { target: "ES2020", useDefineForClassFields: true, lib: ["ES2020", "DOM", "DOM.Iterable"], module: "ESNext", skipLibCheck: true, moduleResolution: "bundler", allowImportingTsExtensions: true, resolveJsonModule: true, isolatedModules: true, noEmit: true, jsx: "react-jsx", strict: true }, include: ["src"] }, null, 2),
       layer: "frontend",
     },
     {
       path: "README.md",
       language: "markdown",
-      description: "Complete production runbook and architecture guide",
-      code: `# ${title}\n\nProduction-grade full stack software suite synthesized by Yaduk AI.\n\n## Architecture\n- **Backend**: ${setupSpec.backendFramework} (${setupSpec.backendLanguage})\n- **Frontend**: ${setupSpec.frontendFramework}\n- **Database**: ${contract.databaseEngine}\n- **Theme**: ${selectedTheme}\n\n## Quickstart Runbook\n${setupSpec.runInstructions.map(i => `### ${i.step}. ${i.title}\n\`\`\`bash\n${i.command}\n\`\`\`\n*${i.note}*\n`).join("\n")}\n`,
+      description: "Production runbook and architecture guide",
+      code: `# ${title}\n\nFull-stack application synthesized by Yaduk AI with the **${selectedTheme}** design theme.\n\n## Architecture\n- **Backend**: ${setupSpec.backendFramework} (${setupSpec.backendLanguage})\n- **Frontend**: ${setupSpec.frontendFramework} with ${screens.length} pages\n- **Database**: ${contract.databaseEngine}\n- **Theme**: ${selectedTheme}\n\n## Pages\n${screens.map(s => `- **${s.screen}** (${s.route}): ${s.apiEndpoints.join(', ')}`).join('\n')}\n\n## Quickstart\n${setupSpec.runInstructions.map(i => `### ${i.step}. ${i.title}\n\`\`\`bash\n${i.command}\n\`\`\`\n*${i.note}*`).join('\n\n')}\n`,
       layer: "root",
     },
   ];
@@ -2286,50 +2925,112 @@ export const generateFrontendEngine = createServerFn({ method: "POST" })
   .handler(async ({ data }) => {
     const theme = data.selectedTheme || "modern-minimal";
     const fallback = generateFrontendEngineFallback(data.blueprint, theme, data.contract, data.setupSpec);
+    const title = data.blueprint.title || "Production Software Platform";
+    const screens = data.contract.screenMappings || [];
+    const routes = data.contract.apiRoutes || [];
+    const themeColors = resolveThemePalette(theme);
 
+    // Try chunked per-file generation
+    try {
+      const generatedFiles: GeneratedCodeFile[] = [...fallback];
+      const existingFiles: Record<string, string> = {};
+      const approvedDeps = data.setupSpec.frontendDependencies
+        .map((d) => ({ name: d.name, purpose: d.purpose }))
+        .slice(0, 15);
+
+      // Define which files to enhance via AI
+      const filesToEnhance: { path: string; purpose: string; screenContext?: any }[] = [
+        { path: 'frontend/src/api/client.ts', purpose: 'Typed API client with axios, auth interceptors, and functions for every endpoint' },
+      ];
+
+      // Add per-screen page components
+      for (const screen of screens) {
+        const componentName = snakeToPascal(screen.screen.replace(/[^a-zA-Z0-9]+/g, '_'));
+        filesToEnhance.push({
+          path: `frontend/src/pages/${componentName}.tsx`,
+          purpose: `Complete React page for ${screen.screen} with forms, data tables, loading states, error handling, and ${theme} theme styling`,
+          screenContext: screen,
+        });
+      }
+
+      filesToEnhance.push({
+        path: 'frontend/src/App.tsx',
+        purpose: `Application shell with tab navigation for ${screens.length} pages, ${theme} theme, and responsive layout`,
+      });
+
+      for (const fileSpec of filesToEnhance) {
+        try {
+          const screenContext = fileSpec.screenContext;
+          const fileRoutes = screenContext
+            ? routes.filter(r => r.screenName === screenContext.screen)
+            : routes;
+
+          const code = await callCodegenEndpoint({
+            file_path: fileSpec.path,
+            file_purpose: fileSpec.purpose,
+            project_title: title,
+            blueprint_summary: data.blueprint.overview?.proposedSolution || '',
+            db_schema_ddl: data.contract.databaseSchema.rawSqlDdl,
+            api_routes: fileRoutes.map(r => ({
+              method: r.method,
+              route: r.route,
+              summary: r.summary,
+              requestPayload: r.requestPayload,
+              responsePayload: r.responsePayload,
+            })),
+            theme: {
+              primary: themeColors.primary,
+              secondary: themeColors.secondary,
+              accent: themeColors.accent,
+              dark: themeColors.dark,
+              headingFont: 'Space Grotesk',
+              bodyFont: 'Inter',
+            },
+            approved_dependencies: approvedDeps,
+            existing_files: existingFiles,
+            screen_context: screenContext || undefined,
+            mvp_features: data.blueprint.features?.slice(0, 4).map(f => ({
+              name: typeof f === 'object' ? (f as any).name || (f as any).title || String(f) : String(f),
+              detail: typeof f === 'object' ? (f as any).description || (f as any).detail || '' : '',
+            })),
+          });
+
+          if (code && code.length > 50) {
+            const idx = generatedFiles.findIndex(f => f.path === fileSpec.path);
+            const newFile: GeneratedCodeFile = {
+              path: fileSpec.path,
+              language: 'typescript',
+              description: fileSpec.purpose,
+              code,
+              layer: 'frontend',
+            };
+            if (idx >= 0) {
+              generatedFiles[idx] = newFile;
+            } else {
+              generatedFiles.push(newFile);
+            }
+            existingFiles[fileSpec.path] = code;
+          }
+        } catch (fileErr) {
+          console.warn(`Chunked codegen failed for ${fileSpec.path}, keeping fallback:`, fileErr);
+        }
+      }
+
+      return generatedFiles;
+    } catch (err) {
+      console.warn("Chunked frontend codegen failed, returning enriched fallback:", err);
+    }
+
+    // Legacy single-shot fallback
     try {
       const approvedPackagesList = data.setupSpec.frontendDependencies
         .map((d) => `- ${d.name} (${d.version}): ${d.purpose}`)
         .join("\n");
 
-      const prompt = `You are a Principal Frontend UI Engineer generating Engine 2 (Frontend & UI) for: "${data.blueprint.title}".
-
-=== CRITICAL CONTRACT: APPROVED FRONTEND DEPENDENCIES ===
-You may ONLY import from the following student-approved packages:
-${approvedPackagesList}
-STRICT RULE: Do NOT import any third-party library not listed above.
-
-=== DESIGN SYSTEM & THEME: "${theme.toUpperCase()}" ===
-Aesthetic: Modern, polished, high-contrast typography, fluid cards, responsive design tokens.
-
-=== SCREEN-TO-API CONTRACT ===
-${JSON.stringify(data.contract.screenMappings, null, 2)}
-
-=== BACKEND API ROUTES ===
-${JSON.stringify(data.contract.apiRoutes, null, 2)}
-
-Generate complete, production-grade frontend source code files implementing the views, API client, and application shell.
-Format each file with the standard delimiter:
-=== FILE: path/to/file.ext ===
-[Source code here without markdown fences]
-=== END FILE ===
-
-Required files:
-1. frontend/package.json
-2. frontend/vite.config.ts
-3. frontend/index.html
-4. frontend/src/index.css
-5. frontend/src/api/client.ts
-6. frontend/src/App.tsx
-7. frontend/src/main.tsx
-8. README.md
-
-Begin generating frontend files now:`;
+      const prompt = `You are a Principal Frontend UI Engineer generating complete frontend code for: "${title}".\n\n=== DEPENDENCIES ===\n${approvedPackagesList}\n\n=== DESIGN THEME: "${theme.toUpperCase()}" ===\nPrimary: ${themeColors.primary}, Secondary: ${themeColors.secondary}, Accent: ${themeColors.accent}, Dark: ${themeColors.dark}\n\n=== SCREENS ===\n${JSON.stringify(screens, null, 2)}\n\n=== API ROUTES ===\n${JSON.stringify(routes, null, 2)}\n\nGenerate complete, production-grade frontend source code.\nFormat: === FILE: path === ... === END FILE ===\nWrite COMPLETE code — no stubs, no TODOs.`;
 
       const codeText = await generateText({
-        system:
-          "You are an expert Frontend Architect. " +
-          "You output complete, runnable React TypeScript code matching theme styling and backend endpoints with 100% precision.",
+        system: "You are an expert Frontend Architect. Output complete, runnable React TypeScript code.",
         prompt,
         temperature: 0.2,
         maxTokens: 8192,
@@ -2338,14 +3039,13 @@ Begin generating frontend files now:`;
 
       const parsed = parseDelimitedCodeFiles(codeText);
       if (parsed.length >= 2) {
-        // Merge AI-generated files on top of fallback files so no baseline config is ever lost
         const fileMap = new Map<string, GeneratedCodeFile>();
         fallback.forEach((f) => fileMap.set(f.path, f));
         parsed.forEach((f) => fileMap.set(f.path, f));
         return Array.from(fileMap.values());
       }
     } catch (err) {
-      console.warn("generateFrontendEngine error, falling back to local synthesizer:", err);
+      console.warn("Legacy single-shot frontend engine also failed:", err);
     }
 
     return fallback;

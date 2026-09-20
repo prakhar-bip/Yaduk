@@ -1,12 +1,12 @@
 import os
 import json
 import time
-import subprocess
 import requests
 import boto3
 from openai import OpenAI
 from app.core.config import settings
 from app.core.activity_logger import log_activity
+from app.services.cloudwatch_service import publish_ai_metric
 
 def get_bedrock_client():
     if not settings.AWS_BEDROCK_ENABLED:
@@ -130,6 +130,7 @@ def call_llm(
     - task_type="deep": Prioritizes maximum parameter scale and architectural reasoning.
         Cascade: AWS Bedrock -> NVIDIA NIM (nemotron-3-ultra-550b-a55b) -> Groq (openai/gpt-oss-120b)
     """
+    _llm_start_time = time.time()
     is_deep = (task_type or "").lower() == "deep"
     task_tag = "[DEEP]" if is_deep else "[FAST]"
     tagged_agent = f"{task_tag} {agent_name}"
@@ -144,6 +145,7 @@ def call_llm(
                 error=None,
                 warning_reason=None
             )
+            publish_ai_metric(agent_name, "bedrock", (time.time() - _llm_start_time) * 1000, True, task_type)
             return res
         except Exception as e_bedrock:
             bedrock_err = str(e_bedrock)
@@ -168,6 +170,7 @@ def call_llm(
                     error=None,
                     warning_reason=None
                 )
+                publish_ai_metric(agent_name, "nvidia", (time.time() - _llm_start_time) * 1000, True, task_type)
                 return res
             except Exception as e_nvidia:
                 nvidia_err = str(e_nvidia)
@@ -187,6 +190,7 @@ def call_llm(
                 error=None,
                 warning_reason=None
             )
+            publish_ai_metric(agent_name, "groq", (time.time() - _llm_start_time) * 1000, True, task_type)
             return res
         except Exception as e_groq:
             groq_err = str(e_groq)
@@ -196,6 +200,7 @@ def call_llm(
                 error=f"{type(e_groq).__name__}: {groq_err}",
                 warning_reason=f"Reason: Groq fallback generation failed ({groq_err})"
             )
+            publish_ai_metric(agent_name, "all_failed", (time.time() - _llm_start_time) * 1000, False, task_type)
             raise RuntimeError(f"All AI agent tiers (Bedrock -> NVIDIA NIM -> Groq) failed for {agent_name}: {groq_err}")
 
     else:
@@ -210,6 +215,7 @@ def call_llm(
                     error=None,
                     warning_reason=None
                 )
+                publish_ai_metric(agent_name, "groq", (time.time() - _llm_start_time) * 1000, True, task_type)
                 return res
             except Exception as e_groq:
                 groq_err = str(e_groq)
@@ -229,6 +235,7 @@ def call_llm(
                 error=None,
                 warning_reason=None
             )
+            publish_ai_metric(agent_name, "nvidia", (time.time() - _llm_start_time) * 1000, True, task_type)
             return res
         except Exception as e_nvidia:
             nvidia_err = str(e_nvidia)
@@ -238,6 +245,7 @@ def call_llm(
                 error=f"{type(e_nvidia).__name__}: {nvidia_err}",
                 warning_reason=f"Reason: NVIDIA NIM fallback generation failed ({nvidia_err})"
             )
+            publish_ai_metric(agent_name, "all_failed", (time.time() - _llm_start_time) * 1000, False, task_type)
             raise RuntimeError(f"All AI agent tiers (Bedrock -> Groq -> NVIDIA NIM) failed for {agent_name}: {nvidia_err}")
 
 

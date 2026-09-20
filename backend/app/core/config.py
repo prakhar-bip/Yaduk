@@ -47,9 +47,20 @@ class Settings(BaseSettings):
     DEEP_TASK_TIMEOUT: float = float(os.getenv("DEEP_TASK_TIMEOUT", "60.0"))
 
     # JWT Authentication settings
-    JWT_SECRET_KEY: str = os.getenv("JWT_SECRET_KEY", "yaduk-super-secret-key-core-auth-jwt")
+    JWT_SECRET_KEY: str = os.getenv("JWT_SECRET_KEY", "CHANGE-ME-IN-PRODUCTION-" + os.getenv("ENVIRONMENT", "dev"))
     JWT_ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24 * 7  # 7 days
+
+    # Amazon S3 Artifact Storage
+    S3_BUCKET_NAME: str = os.getenv("S3_BUCKET_NAME", "yaduk-artifacts")
+    S3_REGION: str = os.getenv("S3_REGION", "")
+
+    # Amazon CloudWatch Observability
+    CLOUDWATCH_NAMESPACE: str = os.getenv("CLOUDWATCH_NAMESPACE", "Yaduk/AIAgents")
+    CLOUDWATCH_ENABLED: bool = os.getenv("CLOUDWATCH_ENABLED", "true").lower() in ("true", "1")
+
+    # CORS Configuration
+    ALLOWED_ORIGINS: list = os.getenv("ALLOWED_ORIGINS", "http://localhost:3000,http://localhost:5173,https://*.amplifyapp.com").split(",")
 
     class Config:
         env_file = (

@@ -3,10 +3,12 @@
 > **Yaduk** *(noun, Sanskrit / Indic root)*: Focused strategic guidance and purposeful execution.  
 > Yaduk serves as an intelligent architect and mentor for engineering students, transforming raw curiosity, technical skills, and constraints into verified, production-grade final-year and flagship capstone projects.
 
-[![AWS Cloud Deployment](https://img.shields.io/badge/AWS%20Cloud-App%20Runner%20%7C%20Amplify%20%7C%20RDS-orange?style=for-the-badge&logo=amazon-aws)](https://aws.amazon.com)
+[![AWS Cloud Deployment](https://img.shields.io/badge/AWS%20Cloud-Bedrock%20%7C%20S3%20%7C%20CloudWatch%20%7C%20RDS%20%7C%20App%20Runner%20%7C%20Amplify-orange?style=for-the-badge&logo=amazon-aws)](https://aws.amazon.com)
+[![Infrastructure as Code](https://img.shields.io/badge/IaC-CloudFormation%20SAM-232F3E?style=for-the-badge&logo=amazon-aws)](template.yaml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg?style=for-the-badge)](https://opensource.org/licenses/MIT)
 [![Frontend](https://img.shields.io/badge/Frontend-React%2019%20%7C%20TanStack-61DAFB?style=for-the-badge&logo=react)](https://tanstack.com)
 [![Backend](https://img.shields.io/badge/Backend-FastAPI%20%7C%20Python%203.12-009688?style=for-the-badge&logo=fastapi)](https://fastapi.tiangolo.com)
+[![Tests](https://img.shields.io/badge/Tests-Pytest%20%7C%20httpx-4B8BBE?style=for-the-badge&logo=pytest)](backend/tests/)
 
 ---
 
@@ -21,18 +23,28 @@ Yaduk is engineered as a cloud-native platform deployed directly on **Amazon Web
 │ COMPONENT            │ AWS SERVICE & SPECIFICATION                                              │
 ├──────────────────────┼──────────────────────────────────────────────────────────────────────────┤
 │ Frontend Web App     │ AWS Amplify Hosting + Amazon CloudFront Global CDN (Edge SSR)            │
-│ Backend Microservice │ AWS App Runner / Amazon ECS Fargate (Containerized FastAPI Service)      │
-│ Database Persistence │ Amazon RDS (PostgreSQL) Multi-AZ Managed Relational Database             │
-│ Artifact & Code Zip  │ Amazon S3 Secure Storage Bucket (Generated Architecture Packages)         │
-│ AI & Agent Engine    │ Amazon Bedrock (Claude 3.5 / Llama 3.3) with Groq (gpt-oss-120b) Fallback│
-│ Monitoring & Health  │ Amazon CloudWatch Metrics, Alarms, and Container Health Probes           │
+│ Backend Microservice │ AWS App Runner (Containerized FastAPI with Auto-Scaling & SSL)           │
+│ Database Persistence │ Amazon RDS (PostgreSQL) Managed Relational Database                      │
+│ AI & Agent Engine    │ Amazon Bedrock (Claude 3.5) + Groq + NVIDIA NIM Multi-Tier Fallback     │
+│ Artifact Storage     │ Amazon S3 (Blueprint JSON & Codebase ZIP with Presigned URLs)           │
+│ Observability        │ Amazon CloudWatch Custom Metrics, Dashboards & Alarms                    │
+│ Infrastructure Code  │ AWS CloudFormation / SAM (template.yaml) — Full IaC                     │
+│ Rate Limiting        │ slowapi (in-memory) with configurable per-endpoint throttling            │
+│ DB Migrations        │ Alembic (versioned schema migrations for PostgreSQL)                     │
 └──────────────────────┴──────────────────────────────────────────────────────────────────────────┘
 ```
 
-- **Live Web Frontend**: Automated deployment via **AWS Amplify Hosting** backed by **Amazon CloudFront** edge distribution for low-latency delivery.
-- **High-Throughput Backend**: Containerized Python microservice orchestrated on **AWS App Runner** with built-in auto-scaling, SSL termination, and health check endpoints.
-- **Relational Data**: Managed **Amazon RDS PostgreSQL** instance providing persistent storage for student profiles, feasibility reports, and generated blueprints.
-- **Storage & Forge**: Blueprint downloads and codebase packages served directly from **Amazon S3**.
+### AWS Services Deep Integration
+
+| AWS Service | How Yaduk Uses It | Code Reference |
+|:---|:---|:---|
+| **Amazon Bedrock** | Primary AI inference via Converse API (Claude 3.5 Sonnet). Task-aware routing with deep/fast modes. | `backend/app/services/ai_service.py` |
+| **Amazon S3** | Stores generated blueprints as JSON and codebase packages as ZIP. Presigned URLs for secure time-limited downloads. | `backend/app/services/s3_service.py` |
+| **Amazon CloudWatch** | Publishes custom metrics per AI invocation: latency, count, error rate by model tier. Pre-built monitoring dashboard. | `backend/app/services/cloudwatch_service.py` |
+| **Amazon RDS** | Managed PostgreSQL for students, projects, blueprints, and mentor conversations. Alembic-managed migrations. | `backend/alembic/` |
+| **AWS App Runner** | Auto-scaling containerized deployment with health checks. | `apprunner.yaml`, `backend/Dockerfile` |
+| **AWS Amplify** | Automated CI/CD frontend deployment with CloudFront CDN. | `amplify.yml` |
+| **AWS CloudFormation** | Complete infrastructure-as-code: VPC, RDS, S3, IAM, CloudWatch Dashboard, Alarms. | `template.yaml` |
 
 ---
 
@@ -63,10 +75,12 @@ Yaduk is engineered as a cloud-native platform deployed directly on **Amazon Web
 | Layer | Technologies |
 | :--- | :--- |
 | **Frontend** | React 19, TypeScript, TanStack Start & TanStack Router, Tailwind CSS, Lucide Icons |
-| **Backend API** | Python 3.12+, FastAPI, SQLAlchemy, Pydantic v2, Uvicorn |
-| **Database** | PostgreSQL (Amazon RDS / Supabase Cloud compatible) |
-| **AI Layer** | Multi-Agent Orchestration Engine with Zero-Cost High-Throughput Inference |
-| **Cloud & DevOps** | AWS Amplify Hosting, AWS App Runner, Docker, Finch, GitHub Actions |
+| **Backend API** | Python 3.12+, FastAPI, SQLAlchemy, Pydantic v2, Uvicorn, slowapi |
+| **Database** | PostgreSQL (Amazon RDS), Alembic Migrations |
+| **AI Layer** | Multi-Agent Orchestration Engine: AWS Bedrock → Groq → NVIDIA NIM |
+| **AWS Cloud** | Bedrock, S3, CloudWatch, RDS, App Runner, Amplify, CloudFormation |
+| **Observability** | CloudWatch Custom Metrics & Dashboard, Activity Logging |
+| **Testing** | Pytest, httpx, TestClient |
 
 ---
 
@@ -76,6 +90,7 @@ Yaduk is engineered as a cloud-native platform deployed directly on **Amazon Web
 - Python 3.12+
 - Node.js 20+ and npm / bun
 - Git
+- PostgreSQL (local or Amazon RDS)
 
 ### 2. Backend Setup
 ```bash
@@ -88,6 +103,13 @@ python -m venv venv
 
 # Install dependencies
 pip install -r requirements.txt
+
+# Configure environment
+cp .env.example .env
+# Edit .env with your credentials (AWS, database, etc.)
+
+# Run database migrations
+alembic upgrade head
 
 # Run development server
 uvicorn app.main:app --reload --port 8000
@@ -106,6 +128,53 @@ npm install
 npm run dev
 ```
 Open your browser at `http://localhost:3000` (or `http://localhost:5173`).
+
+### 4. Running Tests
+```bash
+cd backend
+pytest tests/ -v --tb=short
+```
+
+---
+
+## ☁️ Infrastructure as Code
+
+Deploy the complete Yaduk infrastructure stack with a single CloudFormation command:
+
+```bash
+aws cloudformation deploy \
+  --template-file template.yaml \
+  --stack-name yaduk-production \
+  --parameter-overrides \
+    DBMasterUsername=yaduk_admin \
+    DBMasterPassword=YourSecurePassword123 \
+    S3BucketName=yaduk-artifacts \
+  --capabilities CAPABILITY_NAMED_IAM
+```
+
+The [`template.yaml`](template.yaml) provisions:
+- VPC with subnets and security groups
+- Amazon RDS PostgreSQL instance
+- Amazon S3 artifact bucket with lifecycle policies
+- IAM execution role (Bedrock + S3 + CloudWatch permissions)
+- CloudWatch dashboard with AI agent metrics
+- CloudWatch alarm for high error rates
+
+---
+
+## 📊 Observability & Monitoring
+
+Yaduk publishes custom CloudWatch metrics for every AI agent invocation:
+
+| Metric | Description |
+|:---|:---|
+| `InvocationLatencyMs` | End-to-end AI response time per model tier |
+| `InvocationCount` | Total invocations by agent, tier, and task type |
+| `ErrorCount` | Failed invocations (cascaded through all tiers) |
+| `ProfileCreated` | Student profile creation events |
+| `BlueprintGenerated` | Blueprint generation completions |
+
+Access the pre-built dashboard: **CloudWatch → Dashboards → Yaduk-AI-Agent-Metrics**
 
 ---
 

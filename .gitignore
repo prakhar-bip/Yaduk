@@ -14,10 +14,20 @@ dist/
 .wrangler/
 .amplify-hosting/
 
-# Environment files
+# Environment files (NEVER commit real secrets)
 .env
 .env.local
 .env.*.local
+backend/.env
+frontend/.env
+
+# Alembic
+alembic/__pycache__/
+
+# Test artifacts
+.pytest_cache/
+htmlcov/
+.coverage
 
 # OS
 .DS_Store

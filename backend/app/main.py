@@ -1,14 +1,20 @@
 from fastapi import FastAPI, Request
+from fastapi.responses import JSONResponse
 from app.core.config import settings
 from app.core.activity_logger import log_activity, print_log_header
-from app.api.endpoints import discovery, projects, gateway, auth, health
+from app.api.endpoints import discovery, projects, gateway, auth, health, artifacts, codegen
 from app.db.database import engine, Base, get_db
 from app.models import student, project, user
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 from fastapi import Depends
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
 
-# Create DB tables safely
+# Database initialization
+# For production, use: alembic upgrade head
+# For development convenience, auto-create tables if they don't exist
 try:
     Base.metadata.create_all(bind=engine)
 except Exception as exc:
@@ -17,11 +23,16 @@ except Exception as exc:
 # Print terminal log header once on startup
 print_log_header()
 
+# Rate limiter (in-memory; use Redis for multi-instance deployments)
+limiter = Limiter(key_func=get_remote_address, default_limits=["60/minute"])
+
 app = FastAPI(title=settings.PROJECT_NAME)
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=settings.ALLOWED_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -64,6 +75,8 @@ app.include_router(discovery.router, prefix=settings.API_V1_STR + "/discovery", 
 app.include_router(projects.router, prefix=settings.API_V1_STR + "/projects", tags=["Projects"])
 app.include_router(gateway.router, prefix=settings.API_V1_STR + "/gateway", tags=["Gateway"])
 app.include_router(health.router, prefix=settings.API_V1_STR + "/health", tags=["Health"])
+app.include_router(artifacts.router, prefix=settings.API_V1_STR + "/artifacts", tags=["Artifacts"])
+app.include_router(codegen.router, prefix=settings.API_V1_STR + "/codegen", tags=["CodeGen"])
 
 @app.get("/health", tags=["Health"])
 def root_health(db: Session = Depends(get_db)):
@@ -72,4 +85,3 @@ def root_health(db: Session = Depends(get_db)):
 @app.get("/")
 def read_root():
     return {"message": "Welcome to Yaduk AI Backend"}
-

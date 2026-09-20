@@ -691,7 +691,8 @@ function Home() {
       generateBackendContractFallback(state.blueprint, effectiveProfile);
     const theme = state.selectedTheme || "modern-minimal";
 
-    // 1. Immediate baseline codebase
+    // 1. Immediate baseline codebase (now contract-aware with real models + pages)
+    setBusy("Initializing codebase from project contract...");
     const baselineBackend = generateBackendEngineFallback(state.blueprint, contract, approvedSetup);
     const baselineFrontend = generateFrontendEngineFallback(state.blueprint, theme, contract, approvedSetup);
     const initialFiles = [...baselineBackend, ...baselineFrontend];
@@ -699,8 +700,8 @@ function Home() {
     const initialCodebase: ProjectCodebase = {
       setupSpec: approvedSetup,
       files: initialFiles,
-      backendEngineCompleted: true,
-      frontendEngineCompleted: true,
+      backendEngineCompleted: false,
+      frontendEngineCompleted: false,
       activeFilePath: initialFiles[0]?.path || "backend/app/main.py",
     };
 
@@ -710,13 +711,13 @@ function Home() {
       stage: "codebase",
     });
     award(150, "coder");
-    toast.success("Locked setup! Two-Engine Codebase initialized.");
+    toast.success("Contract-aware baseline initialized! Enhancing with AI...");
 
     let workingFiles: GeneratedCodeFile[] = initialFiles;
 
-    // 2. Run Engine 1: Backend & Database Synthesis
+    // 2. Run Engine 1: Backend & Database Synthesis (chunked per-file generation)
     try {
-      setBusy("Engine 1: Synthesizing Backend & Database models...");
+      setBusy("Engine 1: Generating backend models, routers, and schemas...");
       const backendFiles = await doGenerateBackendEngine({
         data: {
           blueprint: state.blueprint,
@@ -735,21 +736,30 @@ function Home() {
             setupSpec: approvedSetup,
             files: workingFiles,
             backendEngineCompleted: true,
-            frontendEngineCompleted: true,
+            frontendEngineCompleted: false,
             activeFilePath: backendFiles[0]?.path,
           },
         });
-        toast.success("Engine 1 (Backend & DB) completed!");
+        toast.success(`Engine 1 complete! ${backendFiles.length} backend files generated.`);
       }
     } catch (err) {
-      console.warn("Engine 1 AI generation error, keeping baseline backend:", err);
+      console.warn("Engine 1 AI generation error, keeping contract-aware baseline:", err);
+      update({
+        codebase: {
+          setupSpec: approvedSetup,
+          files: workingFiles,
+          backendEngineCompleted: true,
+          frontendEngineCompleted: false,
+          activeFilePath: workingFiles[0]?.path,
+        },
+      });
     } finally {
       setBusy(null);
     }
 
-    // 3. Run Engine 2: Frontend & UI Shell Synthesis
+    // 3. Run Engine 2: Frontend & UI Shell Synthesis (chunked per-page generation)
     try {
-      setBusy("Engine 2: Synthesizing Frontend views & theme components...");
+      setBusy("Engine 2: Generating frontend pages with theme styling...");
       const frontendFiles = await doGenerateFrontendEngine({
         data: {
           blueprint: state.blueprint,
@@ -773,10 +783,19 @@ function Home() {
             activeFilePath: frontendFiles[0]?.path || nonFrontendFiles[0]?.path,
           },
         });
-        toast.success("Engine 2 (Frontend & UI) completed! Full suite ready.");
+        toast.success(`Engine 2 complete! ${frontendFiles.length} frontend files with ${theme} theme.`);
       }
     } catch (err) {
-      console.warn("Engine 2 AI generation error, keeping baseline frontend:", err);
+      console.warn("Engine 2 AI generation error, keeping contract-aware frontend:", err);
+      update({
+        codebase: {
+          setupSpec: approvedSetup,
+          files: workingFiles,
+          backendEngineCompleted: true,
+          frontendEngineCompleted: true,
+          activeFilePath: workingFiles[0]?.path,
+        },
+      });
     } finally {
       setBusy(null);
     }

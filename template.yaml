@@ -1,0 +1,319 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: >-
+  Yaduk — AI-Powered Project Discovery & Architecture Blueprint Engine.
+  Complete AWS infrastructure stack: App Runner, Amplify, RDS PostgreSQL, S3, CloudWatch.
+
+Parameters:
+  EnvironmentName:
+    Type: String
+    Default: production
+    AllowedValues: [production, staging, development]
+  
+  DBMasterUsername:
+    Type: String
+    Default: yaduk_admin
+    NoEcho: true
+  
+  DBMasterPassword:
+    Type: String
+    NoEcho: true
+    MinLength: 8
+  
+  DBInstanceClass:
+    Type: String
+    Default: db.t3.micro
+  
+  BedrockModelId:
+    Type: String
+    Default: anthropic.claude-3-5-sonnet-20241022-v2:0
+  
+  S3BucketName:
+    Type: String
+    Default: yaduk-artifacts
+  
+  GitHubRepoUrl:
+    Type: String
+    Description: GitHub repository URL for Amplify frontend deployment
+    Default: https://github.com/your-org/yaduk
+
+Resources:
+
+  # ============================================================
+  # Amazon S3 — Artifact Storage (Blueprints, Codebases)
+  # ============================================================
+  ArtifactBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub '${S3BucketName}-${AWS::AccountId}'
+      VersioningConfiguration:
+        Status: Enabled
+      LifecycleConfiguration:
+        Rules:
+          - Id: CleanupOldArtifacts
+            Status: Enabled
+            ExpirationInDays: 90
+            Prefix: codebases/
+          - Id: ArchiveOldBlueprints
+            Status: Enabled
+            Transitions:
+              - StorageClass: GLACIER
+                TransitionInDays: 60
+            Prefix: blueprints/
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      Tags:
+        - Key: Project
+          Value: Yaduk
+        - Key: Environment
+          Value: !Ref EnvironmentName
+
+  # ============================================================
+  # Amazon RDS — PostgreSQL Managed Database
+  # ============================================================
+  DBSubnetGroup:
+    Type: AWS::RDS::DBSubnetGroup
+    Properties:
+      DBSubnetGroupDescription: Yaduk RDS subnet group
+      SubnetIds:
+        - !Ref PublicSubnetA
+        - !Ref PublicSubnetB
+
+  YadukDatabase:
+    Type: AWS::RDS::DBInstance
+    Properties:
+      DBInstanceIdentifier: yaduk-db
+      Engine: postgres
+      EngineVersion: '16.3'
+      DBInstanceClass: !Ref DBInstanceClass
+      AllocatedStorage: 20
+      MaxAllocatedStorage: 100
+      MasterUsername: !Ref DBMasterUsername
+      MasterUserPassword: !Ref DBMasterPassword
+      DBName: yaduk
+      PubliclyAccessible: false
+      StorageType: gp3
+      BackupRetentionPeriod: 7
+      MultiAZ: false
+      DBSubnetGroupName: !Ref DBSubnetGroup
+      VPCSecurityGroups:
+        - !GetAtt DBSecurityGroup.GroupId
+      Tags:
+        - Key: Project
+          Value: Yaduk
+
+  # ============================================================
+  # VPC & Networking (Minimal for RDS)
+  # ============================================================
+  VPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.0.0.0/16
+      EnableDnsSupport: true
+      EnableDnsHostnames: true
+      Tags:
+        - Key: Name
+          Value: yaduk-vpc
+
+  PublicSubnetA:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      CidrBlock: 10.0.1.0/24
+      AvailabilityZone: !Select [0, !GetAZs '']
+
+  PublicSubnetB:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      CidrBlock: 10.0.2.0/24
+      AvailabilityZone: !Select [1, !GetAZs '']
+
+  InternetGateway:
+    Type: AWS::EC2::InternetGateway
+
+  VPCGatewayAttachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      VpcId: !Ref VPC
+      InternetGatewayId: !Ref InternetGateway
+
+  DBSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Allow PostgreSQL access from App Runner
+      VpcId: !Ref VPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 5432
+          ToPort: 5432
+          CidrIp: 10.0.0.0/16
+
+  # ============================================================
+  # IAM Role — App Runner Execution (Bedrock + S3 + CloudWatch)
+  # ============================================================
+  AppRunnerExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: yaduk-apprunner-execution-role
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: tasks.apprunner.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: YadukBedrockAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - bedrock:InvokeModel
+                  - bedrock:Converse
+                Resource: !Sub 'arn:aws:bedrock:${AWS::Region}::foundation-model/${BedrockModelId}'
+        - PolicyName: YadukS3Access
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - s3:PutObject
+                  - s3:GetObject
+                  - s3:ListBucket
+                  - s3:DeleteObject
+                Resource:
+                  - !GetAtt ArtifactBucket.Arn
+                  - !Sub '${ArtifactBucket.Arn}/*'
+        - PolicyName: YadukCloudWatchAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - cloudwatch:PutMetricData
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource: '*'
+
+  # ============================================================
+  # Amazon CloudWatch — AI Agent Monitoring Dashboard
+  # ============================================================
+  AIAgentDashboard:
+    Type: AWS::CloudWatch::Dashboard
+    Properties:
+      DashboardName: Yaduk-AI-Agent-Metrics
+      DashboardBody: !Sub |
+        {
+          "widgets": [
+            {
+              "type": "metric",
+              "x": 0, "y": 0, "width": 12, "height": 6,
+              "properties": {
+                "title": "AI Agent Invocation Latency (ms)",
+                "metrics": [
+                  ["Yaduk/AIAgents", "InvocationLatencyMs", "ModelTier", "bedrock"],
+                  [".", ".", ".", "groq"],
+                  [".", ".", ".", "nvidia"]
+                ],
+                "region": "${AWS::Region}",
+                "stat": "Average",
+                "period": 300
+              }
+            },
+            {
+              "type": "metric",
+              "x": 12, "y": 0, "width": 12, "height": 6,
+              "properties": {
+                "title": "AI Invocation Count by Tier",
+                "metrics": [
+                  ["Yaduk/AIAgents", "InvocationCount", "ModelTier", "bedrock"],
+                  [".", ".", ".", "groq"],
+                  [".", ".", ".", "nvidia"]
+                ],
+                "region": "${AWS::Region}",
+                "stat": "Sum",
+                "period": 300
+              }
+            },
+            {
+              "type": "metric",
+              "x": 0, "y": 6, "width": 12, "height": 6,
+              "properties": {
+                "title": "AI Agent Error Rate",
+                "metrics": [
+                  ["Yaduk/AIAgents", "ErrorCount", "ModelTier", "bedrock"],
+                  [".", ".", ".", "groq"],
+                  [".", ".", ".", "nvidia"],
+                  [".", ".", ".", "all_failed"]
+                ],
+                "region": "${AWS::Region}",
+                "stat": "Sum",
+                "period": 300
+              }
+            },
+            {
+              "type": "metric",
+              "x": 12, "y": 6, "width": 12, "height": 6,
+              "properties": {
+                "title": "Student Activity Events",
+                "metrics": [
+                  ["Yaduk/AIAgents", "ProfileCreated", "EventType", "ProfileCreated"],
+                  [".", "BlueprintGenerated", ".", "BlueprintGenerated"],
+                  [".", "MentorSessionStarted", ".", "MentorSessionStarted"]
+                ],
+                "region": "${AWS::Region}",
+                "stat": "Sum",
+                "period": 3600
+              }
+            }
+          ]
+        }
+
+  # ============================================================
+  # CloudWatch Alarms
+  # ============================================================
+  HighErrorRateAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: Yaduk-AI-HighErrorRate
+      AlarmDescription: Triggers when AI agent error rate exceeds 10 errors in 5 minutes
+      Namespace: Yaduk/AIAgents
+      MetricName: ErrorCount
+      Dimensions:
+        - Name: ModelTier
+          Value: all_failed
+      Statistic: Sum
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 10
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+
+Outputs:
+  ArtifactBucketName:
+    Description: S3 bucket for blueprint and codebase artifacts
+    Value: !Ref ArtifactBucket
+
+  ArtifactBucketArn:
+    Description: ARN of the artifact S3 bucket
+    Value: !GetAtt ArtifactBucket.Arn
+
+  DatabaseEndpoint:
+    Description: RDS PostgreSQL endpoint
+    Value: !GetAtt YadukDatabase.Endpoint.Address
+
+  DatabasePort:
+    Description: RDS PostgreSQL port
+    Value: !GetAtt YadukDatabase.Endpoint.Port
+
+  AppRunnerRoleArn:
+    Description: IAM execution role for App Runner with Bedrock, S3, CloudWatch permissions
+    Value: !GetAtt AppRunnerExecutionRole.Arn
+
+  DashboardUrl:
+    Description: CloudWatch monitoring dashboard URL
+    Value: !Sub 'https://${AWS::Region}.console.aws.amazon.com/cloudwatch/home?region=${AWS::Region}#dashboards:name=Yaduk-AI-Agent-Metrics'
