@@ -18,6 +18,7 @@ import { ProjectSetupInspector } from "@/components/quest/ProjectSetupInspector"
 import { CodebaseExplorerView } from "@/components/quest/CodebaseExplorerView";
 import { QuestHud } from "@/components/quest/QuestHud";
 import { QuestScrollPanel } from "@/components/quest/QuestScroll";
+import { BookWorkspace } from "@/components/quest/BookWorkspace";
 import { useJourney } from "@/lib/journey";
 import { useAuth, AUTH_TOKEN_KEY } from "@/lib/auth-context";
 import { AuthModal } from "@/components/auth/AuthModal";
@@ -897,16 +898,7 @@ function Home() {
     <div className="min-h-screen">
       {!showQuest && <LandingNavbar onOpenAuth={openAuth} onLogout={handleLogout} />}
 
-      {showQuest && (
-        <QuestHud
-          stage={state.stage}
-          badges={state.badges}
-          onReset={handleLogout}
-          onSelectStage={handleStageNavigation}
-        />
-      )}
-
-      <main className="mx-auto max-w-6xl px-5 py-8">
+      <main className="mx-auto max-w-7xl px-3 sm:px-5 py-6 sm:py-8">
         {!showQuest && (
           <Intro
             onStart={handleStartJourney}
@@ -915,309 +907,298 @@ function Home() {
           />
         )}
 
-        {showQuest && busy && (
-          <div className="py-6">
-            <Loader label={busy} />
-          </div>
-        )}
-
-        {showQuest && !busy && state.stage === "discovery" && (
-          <Discovery
-            busy={false}
-            onComplete={handleDiscovery}
-            initialName={user?.fullName || ""}
-          />
-        )}
-
-        {showQuest && !busy && state.stage === "profile" && state.profile && (
-          <ProfileCard
-            p={state.profile}
-            onConfirm={() => handleGenerateIdeas(state.profile!)}
-            onEdit={() => update({ stage: "discovery" })}
-          />
-        )}
-
-        {showQuest && !busy && state.stage === "ideas" && state.profile && (
-          <div className="grid gap-6 lg:grid-cols-[280px_1fr]">
-            <div className="hidden lg:block">
-              <ProfileCard p={state.profile} compact />
-            </div>
-            <IdeaDeck
-              ideas={state.ideas}
-              selectedId={state.selectedIdeaId}
-              busy={false}
-              onSelect={handleSelect}
-              onFeedback={handleFeedback}
-              onReroll={() => handleGenerateIdeas(state.profile!)}
-            />
-          </div>
-        )}
-
-        {showQuest && !busy && state.stage === "feasibility" && selected && state.feasibility && (
-          <FeasibilityPanel
-            idea={selected}
-            f={state.feasibility}
-            busy={false}
-            onChoose={handleDirection}
-            onBack={() => update({ stage: "ideas" })}
-          />
-        )}
-
-        {showQuest && !busy && state.stage === "blueprint" && state.blueprint && (
-          <div className="space-y-6">
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <div>
-                <h2 className="font-display text-3xl font-extrabold">Your build plan</h2>
+        {showQuest && (
+          <BookWorkspace
+            currentStage={state.stage}
+            onSelectStage={handleStageNavigation}
+            studentName={user?.fullName || "Engineering Candidate"}
+            onToggleMentor={() => setDockOpen(!dockOpen)}
+            isMentorOpen={dockOpen}
+            isBusy={Boolean(busy)}
+            leftPageOverride={
+              state.stage === "ideas" && state.profile ? (
+                <div className="space-y-4">
+                  <div className="border-b border-dashed border-slate-300 pb-3">
+                    <span className="inline-block font-mono text-[10px] font-extrabold uppercase tracking-wider text-blue-700 bg-blue-50 px-2 py-0.5 rounded border border-blue-200">
+                      Chapter 3 Dossier
+                    </span>
+                    <h2 className="mt-1 font-display text-lg font-bold text-slate-900 leading-snug">
+                      Candidate Skill Profile
+                    </h2>
+                    <p className="text-xs text-slate-500 mt-0.5">Verified candidate baseline</p>
+                  </div>
+                  <ProfileCard p={state.profile} compact />
+                </div>
+              ) : undefined
+            }
+            onProceedNext={
+              state.stage === "profile" && state.profile
+                ? () => handleGenerateIdeas(state.profile!)
+                : state.stage === "feasibility" && selected
+                  ? () => handleDirection(selected)
+                  : state.stage === "blueprint"
+                    ? () => {
+                        setBusy(null);
+                        update({ stage: "theme" });
+                      }
+                    : state.stage === "contract"
+                      ? () => void handleProceedToSetup()
+                      : undefined
+            }
+            canProceedNext={
+              state.stage === "profile"
+                ? Boolean(state.profile)
+                : state.stage === "feasibility"
+                  ? Boolean(selected && state.feasibility)
+                  : state.stage === "blueprint"
+                    ? Boolean(state.blueprint)
+                    : state.stage === "contract"
+                      ? Boolean(state.backendContract)
+                      : false
+            }
+            nextButtonLabel={
+              state.stage === "profile"
+                ? "Approve Profile & Turn Page →"
+                : state.stage === "feasibility"
+                  ? "Approve Feasibility & Turn Page →"
+                  : state.stage === "blueprint"
+                    ? "Proceed to Theme Chapter →"
+                    : state.stage === "contract"
+                      ? "Approve Schema & Turn Page →"
+                      : undefined
+            }
+          >
+            {busy && (
+              <div className="py-12 flex justify-center">
+                <Loader label={busy} />
               </div>
-              <button
-                type="button"
-                onClick={() => {
-                  setBusy(null);
-                  update({ stage: "feasibility" });
-                }}
-                className="mono-label rounded-full border-2 border-border px-4 py-2 cursor-pointer hover:bg-sunken transition-all"
-              >
-                ← Back to Reality Check
-              </button>
-            </div>
-            <QuestScrollPanel
-              scroll={state.scroll}
-              busy={scrollBusy}
-              onSummon={() => void handleSummon()}
-              onAsk={ask}
-            />
-            <PlanChangeBar busy={applying} onSubmit={(req) => void handleApply(req)} />
-            <BlueprintView
-              b={state.blueprint}
-              changeLog={state.changeLog}
-              onProceedToTheme={() => {
-                setBusy(null);
-                update({ stage: "theme" });
-              }}
-              isProceedingToTheme={Boolean(busy)}
-            />
-            <MentorDock
-              profile={state.profile || effectiveProfile}
-              blueprint={state.blueprint}
-              askSeed={askSeed}
-              open={dockOpen}
-              onToggle={setDockOpen}
-              onAsked={() => award(40, "apprentice")}
-            />
-          </div>
-        )}
+            )}
 
-        {showQuest && !busy && state.stage === "theme" && state.blueprint && (
-          <div className="space-y-6">
-            <ThemeSelection
-              blueprint={state.blueprint}
-              profile={state.profile || effectiveProfile}
-              onSelectTheme={(theme) => {
-                award(100, "stylist");
-                void handleGenerateBackendContract(theme);
-              }}
-              onBack={() => {
-                setBusy(null);
-                update({ stage: "blueprint" });
-              }}
-              isGenerating={Boolean(busy)}
-            />
-            <MentorDock
-              profile={state.profile || effectiveProfile}
-              blueprint={state.blueprint}
-              askSeed={askSeed}
-              open={dockOpen}
-              onToggle={setDockOpen}
-              onAsked={() => award(40, "apprentice")}
-            />
-          </div>
-        )}
+            {!busy && state.stage === "discovery" && (
+              <Discovery
+                busy={false}
+                onComplete={handleDiscovery}
+                initialName={user?.fullName || ""}
+              />
+            )}
 
-        {showQuest && !busy && state.stage === "contract" && state.blueprint && (
-          <div className="space-y-6">
-            <BackendContractView
-              contract={
-                state.backendContract ||
-                generateBackendContractFallback(state.blueprint, effectiveProfile)
-              }
-              blueprint={state.blueprint}
-              profile={state.profile || effectiveProfile}
-              selectedTheme={state.selectedTheme}
-              onBackToTheme={() => {
-                setBusy(null);
-                update({ stage: "theme" });
-              }}
-              onOpenMentor={() => setDockOpen(true)}
-              onProceedToSetup={() => void handleProceedToSetup()}
-            />
-            <MentorDock
-              profile={state.profile || effectiveProfile}
-              blueprint={state.blueprint}
-              askSeed={askSeed}
-              open={dockOpen}
-              onToggle={setDockOpen}
-              onAsked={() => award(40, "apprentice")}
-            />
-          </div>
-        )}
+            {!busy && state.stage === "profile" && state.profile && (
+              <ProfileCard
+                p={state.profile}
+                onConfirm={() => handleGenerateIdeas(state.profile!)}
+                onEdit={() => update({ stage: "discovery" })}
+              />
+            )}
 
-        {showQuest && !busy && state.stage === "setup" && state.blueprint && (
-          <div className="space-y-6">
-            <ProjectSetupInspector
-              setupSpec={
-                state.setupSpec ||
-                generateProjectSetupFallback(
-                  state.blueprint,
-                  effectiveProfile,
-                  state.backendContract
-                )
-              }
-              blueprint={state.blueprint}
-              profile={state.profile || effectiveProfile}
-              onLockSetupAndProceed={(approvedSetup) => void handleLockSetupAndGenerate(approvedSetup)}
-              onBackToContract={() => {
-                setBusy(null);
-                update({ stage: "contract" });
-              }}
-              isGenerating={Boolean(busy)}
-            />
-            <MentorDock
-              profile={state.profile || effectiveProfile}
-              blueprint={state.blueprint}
-              askSeed={askSeed}
-              open={dockOpen}
-              onToggle={setDockOpen}
-              onAsked={() => award(40, "apprentice")}
-            />
-          </div>
-        )}
+            {!busy && state.stage === "ideas" && state.profile && (
+              <IdeaDeck
+                ideas={state.ideas}
+                selectedId={state.selectedIdeaId}
+                busy={false}
+                onSelect={handleSelect}
+                onFeedback={handleFeedback}
+                onReroll={() => handleGenerateIdeas(state.profile!)}
+              />
+            )}
 
-        {showQuest && !busy && state.stage === "codebase" && state.blueprint && (
-          <div className="space-y-6">
-            <CodebaseExplorerView
-              codebase={
-                state.codebase || {
-                  setupSpec:
+            {!busy && state.stage === "feasibility" && selected && state.feasibility && (
+              <FeasibilityPanel
+                idea={selected}
+                f={state.feasibility}
+                busy={false}
+                onChoose={handleDirection}
+                onBack={() => update({ stage: "ideas" })}
+              />
+            )}
+
+            {!busy && state.stage === "blueprint" && state.blueprint && (
+              <div className="space-y-6">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <h2 className="font-display text-2xl font-extrabold text-slate-900">Engineering Build Plan</h2>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setBusy(null);
+                      update({ stage: "feasibility" });
+                    }}
+                    className="mono-label rounded-full border border-slate-200 bg-white px-4 py-2 cursor-pointer hover:bg-slate-50 transition-all text-xs font-semibold"
+                  >
+                    ← Back to Reality Check
+                  </button>
+                </div>
+                <QuestScrollPanel
+                  scroll={state.scroll}
+                  busy={scrollBusy}
+                  onSummon={() => void handleSummon()}
+                  onAsk={ask}
+                />
+                <PlanChangeBar busy={applying} onSubmit={(req) => void handleApply(req)} />
+                <BlueprintView
+                  b={state.blueprint}
+                  changeLog={state.changeLog}
+                  onProceedToTheme={() => {
+                    setBusy(null);
+                    update({ stage: "theme" });
+                  }}
+                  isProceedingToTheme={Boolean(busy)}
+                />
+              </div>
+            )}
+
+            {!busy && state.stage === "theme" && state.blueprint && (
+              <div className="space-y-6">
+                <ThemeSelection
+                  blueprint={state.blueprint}
+                  profile={state.profile || effectiveProfile}
+                  onSelectTheme={(theme) => {
+                    award(100, "stylist");
+                    void handleGenerateBackendContract(theme);
+                  }}
+                  onBack={() => {
+                    setBusy(null);
+                    update({ stage: "blueprint" });
+                  }}
+                  isGenerating={Boolean(busy)}
+                />
+              </div>
+            )}
+
+            {!busy && state.stage === "contract" && state.blueprint && (
+              <div className="space-y-6">
+                <BackendContractView
+                  contract={
+                    state.backendContract ||
+                    generateBackendContractFallback(state.blueprint, effectiveProfile)
+                  }
+                  blueprint={state.blueprint}
+                  profile={state.profile || effectiveProfile}
+                  selectedTheme={state.selectedTheme}
+                  onBackToTheme={() => {
+                    setBusy(null);
+                    update({ stage: "theme" });
+                  }}
+                  onOpenMentor={() => setDockOpen(true)}
+                  onProceedToSetup={() => void handleProceedToSetup()}
+                />
+              </div>
+            )}
+
+            {!busy && state.stage === "setup" && state.blueprint && (
+              <div className="space-y-6">
+                <ProjectSetupInspector
+                  setupSpec={
                     state.setupSpec ||
                     generateProjectSetupFallback(
                       state.blueprint,
                       effectiveProfile,
                       state.backendContract
-                    ),
-                  files: [
-                    ...generateBackendEngineFallback(
-                      state.blueprint,
-                      state.backendContract ||
-                        generateBackendContractFallback(state.blueprint, effectiveProfile),
-                      state.setupSpec ||
-                        generateProjectSetupFallback(
-                          state.blueprint,
-                          effectiveProfile,
-                          state.backendContract
-                        )
-                    ),
-                    ...generateFrontendEngineFallback(
-                      state.blueprint,
-                      state.selectedTheme || "modern-minimal",
-                      state.backendContract ||
-                        generateBackendContractFallback(state.blueprint, effectiveProfile),
-                      state.setupSpec ||
-                        generateProjectSetupFallback(
-                          state.blueprint,
-                          effectiveProfile,
-                          state.backendContract
-                        )
-                    ),
-                  ],
-                  backendEngineCompleted: true,
-                  frontendEngineCompleted: true,
-                  activeFilePath: "backend/app/main.py",
-                }
-              }
-              blueprint={state.blueprint}
-              profile={state.profile || effectiveProfile}
-              onBackToSetup={() => {
-                setBusy(null);
-                update({ stage: "setup" });
-              }}
-              onRegenerateBackend={() => {
-                if (state.setupSpec) {
-                  void handleLockSetupAndGenerate(state.setupSpec);
-                }
-              }}
-              onRegenerateFrontend={() => {
-                if (state.setupSpec) {
-                  void handleLockSetupAndGenerate(state.setupSpec);
-                }
-              }}
-              isGenerating={Boolean(busy)}
-            />
-            <MentorDock
-              profile={state.profile || effectiveProfile}
-              blueprint={state.blueprint}
-              askSeed={askSeed}
-              open={dockOpen}
-              onToggle={setDockOpen}
-              onAsked={() => award(40, "apprentice")}
-            />
-          </div>
-        )}
-
-
-        {showQuest && !busy && state.stage === "mentor" && state.blueprint && (
-          <div className="grid gap-6 lg:grid-cols-[minmax(0,440px)_1fr]">
-            <div className="order-2 space-y-6 lg:order-1">
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <div>
-                  <h2 className="font-display text-3xl font-extrabold">{state.blueprint.title}</h2>
-                </div>
-                <div className="flex flex-wrap items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setBusy(null);
-                      update({ stage: "blueprint" });
-                    }}
-                    className="mono-label rounded-full border-2 border-border bg-accent px-4 py-2 font-bold text-accent-foreground cursor-pointer transition-all hover:opacity-90 shadow-xs"
-                  >
-                    ← Back to Plan
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setBusy(null);
-                      update({ stage: "ideas" });
-                    }}
-                    className="mono-label rounded-full border-2 border-border px-4 py-2 cursor-pointer hover:bg-sunken"
-                  >
-                    back to ideas
-                  </button>
-                </div>
+                    )
+                  }
+                  blueprint={state.blueprint}
+                  profile={state.profile || effectiveProfile}
+                  onLockSetupAndProceed={(approvedSetup) => void handleLockSetupAndGenerate(approvedSetup)}
+                  onBackToContract={() => {
+                    setBusy(null);
+                    update({ stage: "contract" });
+                  }}
+                  isGenerating={Boolean(busy)}
+                />
               </div>
-              <QuestScrollPanel
-                scroll={state.scroll}
-                busy={scrollBusy}
-                onSummon={() => void handleSummon()}
-                onAsk={ask}
-              />
-              <BlueprintView
-                b={state.blueprint}
-                changeLog={state.changeLog}
-                onProceedToTheme={() => update({ stage: "theme" })}
-                isProceedingToTheme={Boolean(busy)}
-              />
-            </div>
-            <div className="order-1 lg:order-2 lg:sticky lg:top-36 lg:h-fit">
-              <Mentor
-                profile={state.profile || effectiveProfile}
-                blueprint={state.blueprint}
-                askSeed={askSeed}
-                onAsked={() => award(40, "apprentice")}
-              />
-            </div>
-          </div>
+            )}
+
+            {!busy && state.stage === "codebase" && state.blueprint && (
+              <div className="space-y-6">
+                <CodebaseExplorerView
+                  codebase={
+                    state.codebase || {
+                      setupSpec:
+                        state.setupSpec ||
+                        generateProjectSetupFallback(
+                          state.blueprint,
+                          effectiveProfile,
+                          state.backendContract
+                        ),
+                      files: [
+                        ...generateBackendEngineFallback(
+                          state.blueprint,
+                          state.backendContract ||
+                            generateBackendContractFallback(state.blueprint, effectiveProfile),
+                          state.setupSpec ||
+                            generateProjectSetupFallback(
+                              state.blueprint,
+                              effectiveProfile,
+                              state.backendContract
+                            )
+                        ),
+                        ...generateFrontendEngineFallback(
+                          state.blueprint,
+                          state.selectedTheme || "modern-minimal",
+                          state.backendContract ||
+                            generateBackendContractFallback(state.blueprint, effectiveProfile),
+                          state.setupSpec ||
+                            generateProjectSetupFallback(
+                              state.blueprint,
+                              effectiveProfile,
+                              state.backendContract
+                            )
+                        ),
+                      ],
+                      backendEngineCompleted: true,
+                      frontendEngineCompleted: true,
+                      activeFilePath: "backend/app/main.py",
+                    }
+                  }
+                  blueprint={state.blueprint}
+                  profile={state.profile || effectiveProfile}
+                  onBackToSetup={() => {
+                    setBusy(null);
+                    update({ stage: "setup" });
+                  }}
+                  onRegenerateBackend={() => {
+                    if (state.setupSpec) {
+                      void handleLockSetupAndGenerate(state.setupSpec);
+                    }
+                  }}
+                  onRegenerateFrontend={() => {
+                    if (state.setupSpec) {
+                      void handleLockSetupAndGenerate(state.setupSpec);
+                    }
+                  }}
+                  isGenerating={Boolean(busy)}
+                />
+              </div>
+            )}
+          </BookWorkspace>
         )}
       </main>
+
+      {/* Floating AI Mentor TA Desk accessible across all stages */}
+      {showQuest && (
+        <MentorDock
+          profile={state.profile || effectiveProfile}
+          blueprint={
+            state.blueprint || {
+              title: "Capstone Project",
+              tagline: "Final Year Engineering Project",
+              problemStatement: "Architecting a production-grade system",
+              targetAudience: "Faculty and External Reviewers",
+              mvpScope: [],
+              futureScope: [],
+              techStack: [],
+              architectureLayers: [],
+              phases: [],
+              risks: [],
+              vivaTopics: [],
+            }
+          }
+          askSeed={askSeed}
+          open={dockOpen}
+          onToggle={setDockOpen}
+          onAsked={() => award(40, "apprentice")}
+        />
+      )}
 
       <AuthModal
         open={authModalOpen && !isAuthenticated}
