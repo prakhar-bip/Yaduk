@@ -7,6 +7,7 @@ import {
   ArrowRight,
   ChevronLeft,
   ChevronRight,
+  ChevronDown,
   GraduationCap,
   BookOpen,
   User,
@@ -133,6 +134,24 @@ export function BookWorkspace({
     }
   }, [currentIndex, maxUnlockedIndex]);
 
+  // Dropdown menu state
+  const [dropdownOpen, setDropdownOpen] = useState(false);
+  const dropdownRef = React.useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setDropdownOpen(false);
+      }
+    }
+    if (dropdownOpen) {
+      document.addEventListener("mousedown", handleClickOutside);
+    }
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, [dropdownOpen]);
+
   const handleStageClick = (targetStage: Stage, targetIndex: number) => {
     if (targetIndex > maxUnlockedIndex) return;
     if (targetIndex === currentIndex) return;
@@ -183,73 +202,158 @@ export function BookWorkspace({
           </div>
         </div>
 
-        {/* Student & Progress Info */}
-        <div className="flex flex-wrap items-center gap-2 sm:gap-2.5">
-          {onGoHome && (
-            <button
-              type="button"
-              onClick={onGoHome}
-              className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-700 px-3 py-1.5 text-xs font-semibold transition-colors cursor-pointer"
-              title="Return to Portal Overview & Login"
-            >
-              <Home className="size-3.5 text-slate-500" />
-              <span className="hidden sm:inline">Overview</span>
-            </button>
-          )}
-
-          {onResetFlow && (
-            <button
-              type="button"
-              onClick={onResetFlow}
-              className="inline-flex items-center gap-1.5 rounded-xl border border-amber-200 bg-amber-50/70 hover:bg-amber-100 text-amber-800 px-3 py-1.5 text-xs font-semibold transition-colors cursor-pointer"
-              title="Reset project flow back to Stage 1: Discovery"
-            >
-              <RotateCcw className="size-3.5 text-amber-600" />
-              <span>Reset Flow</span>
-            </button>
-          )}
-
-          {onLogout && (
-            <button
-              type="button"
-              onClick={onLogout}
-              className="inline-flex items-center gap-1.5 rounded-xl border border-red-200 bg-red-50/70 hover:bg-red-600 hover:text-white text-red-600 px-3 py-1.5 text-xs font-semibold transition-colors cursor-pointer group"
-              title="Log out of Yaduk"
-            >
-              <LogOut className="size-3.5 text-red-500 group-hover:text-white transition-colors" />
-              <span>Log Out</span>
-            </button>
-          )}
-
-          {onToggleMentor && (
-            <button
-              type="button"
-              onClick={onToggleMentor}
-              className={`inline-flex items-center gap-1.5 rounded-xl border px-3 py-1.5 text-xs font-semibold transition-colors cursor-pointer ${
-                isMentorOpen
-                  ? "bg-blue-600 text-white border-blue-600 shadow-xs"
-                  : "border-blue-200 bg-blue-50/80 hover:bg-blue-100 text-blue-700"
-              }`}
-              title={isMentorOpen ? "Minimize AI Mentor" : "Ask AI Mentor & Viva Coach"}
-            >
-              <Sparkles className="size-3.5 text-blue-500" />
-              <span>{isMentorOpen ? "Close Mentor" : "AI Mentor"}</span>
-            </button>
-          )}
-
-          <div className="hidden md:flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs text-slate-700">
-            <div className="grid size-5 place-items-center rounded-full bg-blue-600 text-[10px] font-bold text-white">
-              <User className="size-3" />
+        {/* ====================================================================
+            STUDENT PROFILE & ACADEMIC MENU DROPDOWN (Groups all 5 buttons)
+            ==================================================================== */}
+        <div className="relative" ref={dropdownRef}>
+          <button
+            type="button"
+            onClick={() => setDropdownOpen((prev) => !prev)}
+            aria-expanded={dropdownOpen}
+            aria-haspopup="true"
+            className="flex items-center gap-2 sm:gap-2.5 rounded-2xl border border-slate-200/90 bg-slate-50/80 hover:bg-slate-100/90 hover:border-slate-300 px-3 py-1.5 text-xs transition-all shadow-xs cursor-pointer select-none"
+          >
+            <div className="grid size-7 place-items-center rounded-xl bg-blue-600 font-bold text-white text-xs shadow-xs">
+              {studentName ? studentName[0]?.toUpperCase() : "C"}
             </div>
-            <span className="font-semibold text-slate-800">{studentName || "Candidate"}</span>
-            <span className="text-slate-400">•</span>
-            <span className="font-mono text-[11px] text-slate-500">B.Tech CSE</span>
-          </div>
+            <div className="text-left hidden sm:block">
+              <div className="flex items-center gap-1.5">
+                <span className="font-bold text-slate-800 text-xs leading-none">
+                  {studentName || "Candidate"}
+                </span>
+                <span className="text-[10px] font-medium text-slate-500">
+                  • B.Tech CSE
+                </span>
+              </div>
+              <span className="text-[10px] text-slate-400 block mt-0.5">
+                Stage {currentIndex + 1}/9: {activeStage.label}
+              </span>
+            </div>
+            <div className="flex items-center gap-1 rounded-full bg-blue-100 border border-blue-200 px-2 py-0.5 text-[11px] font-extrabold text-blue-800">
+              <BookOpen className="size-3 text-blue-700" />
+              <span>{percentComplete}%</span>
+            </div>
+            <ChevronDown
+              className={`size-3.5 text-slate-400 transition-transform duration-200 ${
+                dropdownOpen ? "rotate-180 text-blue-600" : ""
+              }`}
+            />
+          </button>
 
-          <div className="flex items-center gap-1.5 rounded-full bg-blue-50 border border-blue-200 px-3 py-1.5 text-xs font-bold text-blue-800">
-            <BookOpen className="size-3.5 text-blue-600" />
-            <span>{percentComplete}% Completed</span>
-          </div>
+          {dropdownOpen && (
+            <div className="absolute right-0 top-full mt-2 w-72 origin-top-right rounded-2xl border border-slate-200/90 bg-white p-2 shadow-xl shadow-slate-900/10 z-50 animate-in fade-in zoom-in-95 duration-150">
+              {/* Profile & Stage Progress Header */}
+              <div className="rounded-xl bg-slate-50/90 border border-slate-100 p-3 mb-1.5">
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center gap-2">
+                    <div className="grid size-8 place-items-center rounded-xl bg-blue-600 text-xs font-bold text-white shadow-xs">
+                      {studentName ? studentName[0]?.toUpperCase() : "C"}
+                    </div>
+                    <div>
+                      <p className="font-bold text-slate-900 text-xs leading-none">
+                        {studentName || "Engineering Candidate"}
+                      </p>
+                      <p className="text-[10px] text-slate-500 font-medium mt-0.5">
+                        B.Tech CSE · Sem 8 Capstone
+                      </p>
+                    </div>
+                  </div>
+                  <span className="font-mono text-[10px] font-bold bg-blue-100 text-blue-800 px-2 py-0.5 rounded-full border border-blue-200">
+                    {percentComplete}%
+                  </span>
+                </div>
+                <div>
+                  <div className="flex items-center justify-between text-[10px] text-slate-500 mb-1">
+                    <span>Progress (Stage {currentIndex + 1}/9)</span>
+                    <span className="font-semibold text-slate-700">{activeStage.label}</span>
+                  </div>
+                  <div className="h-1.5 w-full overflow-hidden rounded-full bg-slate-200">
+                    <div
+                      className="h-full bg-blue-600 rounded-full transition-all duration-300"
+                      style={{ width: `${percentComplete}%` }}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Menu Actions */}
+              <div className="space-y-0.5">
+                {onToggleMentor && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setDropdownOpen(false);
+                      onToggleMentor();
+                    }}
+                    className="flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-xs font-medium text-slate-700 hover:bg-blue-50 hover:text-blue-800 transition-colors cursor-pointer"
+                  >
+                    <Sparkles className="size-4 text-blue-600 shrink-0" />
+                    <div className="text-left flex-1">
+                      <span className="font-semibold block text-slate-800">
+                        {isMentorOpen ? "Minimize AI Mentor" : "Ask AI Mentor"}
+                      </span>
+                      <span className="text-[10px] text-slate-500">
+                        Viva coach & capstone guidance
+                      </span>
+                    </div>
+                  </button>
+                )}
+
+                {onGoHome && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setDropdownOpen(false);
+                      onGoHome();
+                    }}
+                    className="flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-xs font-medium text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer"
+                  >
+                    <Home className="size-4 text-slate-500 shrink-0" />
+                    <div className="text-left flex-1">
+                      <span className="font-semibold block text-slate-800">Portal Overview</span>
+                      <span className="text-[10px] text-slate-500">Return to landing cover</span>
+                    </div>
+                  </button>
+                )}
+
+                {onResetFlow && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setDropdownOpen(false);
+                      onResetFlow();
+                    }}
+                    className="flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-xs font-medium text-amber-800 hover:bg-amber-50 transition-colors cursor-pointer"
+                  >
+                    <RotateCcw className="size-4 text-amber-600 shrink-0" />
+                    <div className="text-left flex-1">
+                      <span className="font-semibold block text-amber-900">Reset Flow</span>
+                      <span className="text-[10px] text-amber-700/80">Restart from Stage 1: Discovery</span>
+                    </div>
+                  </button>
+                )}
+
+                <div className="border-t border-slate-100 my-1" />
+
+                {onLogout && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setDropdownOpen(false);
+                      onLogout();
+                    }}
+                    className="flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-xs font-medium text-red-600 hover:bg-red-50 transition-colors cursor-pointer"
+                  >
+                    <LogOut className="size-4 text-red-500 shrink-0" />
+                    <div className="text-left flex-1">
+                      <span className="font-semibold block text-red-600">Log Out</span>
+                      <span className="text-[10px] text-red-400">Sign out of current account</span>
+                    </div>
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
         </div>
       </header>
 
