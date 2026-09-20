@@ -2164,28 +2164,120 @@ function generatePageComponentForScreen(
   return code;
 }
 
-/** Call the backend per-file codegen endpoint */
+function stripCodeFences(code: string): string {
+  let cleaned = code.trim();
+  if (cleaned.startsWith("```")) {
+    const lines = cleaned.split("\n");
+    if (lines[0].trim().startsWith("```")) {
+      lines.shift();
+    }
+    if (lines.length > 0 && lines[lines.length - 1].trim() === "```") {
+      lines.pop();
+    }
+    cleaned = lines.join("\n").trim();
+  }
+  return cleaned;
+}
+
+/** Call the backend per-file codegen endpoint with direct AI Gateway fallback */
 async function callCodegenEndpoint(requestBody: Record<string, unknown>): Promise<string> {
+  const filePath = (requestBody['file_path'] as string) || 'code.txt';
+  const filePurpose = (requestBody['file_purpose'] as string) || '';
+  const projectTitle = (requestBody['project_title'] as string) || 'Capstone Project';
+  const blueprintSummary = (requestBody['blueprint_summary'] as string) || '';
+  const dbSchemaDdl = (requestBody['db_schema_ddl'] as string) || '';
+  const apiRoutes = (requestBody['api_routes'] as any[]) || [];
+  const theme = requestBody['theme'] as Record<string, string> | undefined;
+  const approvedDeps = (requestBody['approved_dependencies'] as any[]) || [];
+  const screenContext = requestBody['screen_context'] as any;
+  const mvpFeatures = (requestBody['mvp_features'] as any[]) || [];
+
   const candidates = [
     process.env['BACKEND_URL']?.replace(/\/+$/, ''),
+    'http://yaduk-api-env.eba-dkrzgicw.us-east-1.elasticbeanstalk.com',
     'http://127.0.0.1:8000',
   ].filter(Boolean) as string[];
   
+  // 1. First try native backend /api/codegen/generate-file endpoint if present
   for (const url of candidates) {
     try {
       const res = await fetch(`${url}/api/codegen/generate-file`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(requestBody),
+        signal: AbortSignal.timeout(10000),
       });
       if (!res.ok) continue;
       const data = await res.json();
-      return data.code || '';
+      if (data?.code && data.code.trim().length > 30) {
+        return stripCodeFences(data.code);
+      }
     } catch {
       continue;
     }
   }
-  throw new Error('All backend candidates failed for codegen');
+
+  // 2. Direct AI Gateway Text Generation (/api/gateway/generate-text on live EB backend)
+  try {
+    const promptSections: string[] = [
+      `You are generating ONE complete source code file: \`${filePath}\``,
+      `Project: "${projectTitle}"`,
+      `Purpose of this file: ${filePurpose}`,
+    ];
+
+    if (blueprintSummary) {
+      promptSections.push(`\n=== PROJECT OVERVIEW ===\n${blueprintSummary.slice(0, 1000)}`);
+    }
+
+    if (screenContext) {
+      promptSections.push(`\n=== SCREEN CONTEXT ===\nScreen: ${screenContext.screen || 'N/A'}\nRoute: ${screenContext.route || '/'}`);
+    }
+
+    if (mvpFeatures && mvpFeatures.length > 0) {
+      promptSections.push(`\n=== CORE FEATURES ===\n${mvpFeatures.map((f: any) => `- ${f.name || f}: ${f.detail || ''}`).join('\n')}`);
+    }
+
+    if (dbSchemaDdl) {
+      promptSections.push(`\n=== DATABASE SCHEMA (SQL DDL) ===\n${dbSchemaDdl.slice(0, 2000)}`);
+    }
+
+    if (apiRoutes && apiRoutes.length > 0) {
+      promptSections.push(`\n=== RELEVANT API ROUTES ===\n${apiRoutes.slice(0, 6).map((r: any) => `  ${r.method} ${r.route}: ${r.summary || ''}`).join('\n')}`);
+    }
+
+    if (theme) {
+      promptSections.push(`\n=== UI DESIGN THEME ===\nPrimary: ${theme.primary}, Secondary: ${theme.secondary}, Accent: ${theme.accent}, Dark: ${theme.dark}`);
+    }
+
+    if (approvedDeps && approvedDeps.length > 0) {
+      promptSections.push(`\n=== APPROVED DEPENDENCIES ===\n${approvedDeps.slice(0, 10).map((d: any) => `- ${d.name}: ${d.purpose}`).join('\n')}`);
+    }
+
+    promptSections.push(`
+=== CRITICAL INSTRUCTIONS ===
+1. Generate ONLY the code for \`${filePath}\` — no other files, no markdown wrappers, no commentary.
+2. Write COMPLETE, PRODUCTION-READY code with real logic (NO stubs, NO placeholders, NO TODOs).
+3. Do NOT wrap output in markdown code blocks (\`\`\` or \`\`\`language).
+4. Return raw source code directly.`);
+
+    const system = "You are a Principal Software Engineer. Output strictly raw, complete, runnable source code without markdown fences or conversational text.";
+
+    const generated = await generateText({
+      system,
+      prompt: promptSections.join('\n'),
+      temperature: 0.15,
+      maxTokens: 1800,
+      agentName: `Yaduk CodeGen [${filePath}]`,
+    });
+
+    if (generated && generated.trim().length > 40) {
+      return stripCodeFences(generated);
+    }
+  } catch (gatewayErr) {
+    console.warn(`Gateway text generation failed for ${filePath}:`, gatewayErr);
+  }
+
+  throw new Error(`All code generation methods failed for ${filePath}`);
 }
 
 export function generateProjectSetupFallback(
@@ -2672,8 +2764,8 @@ export const generateBackendEngine = createServerFn({ method: "POST" })
         { path: 'backend/app/schemas.py', purpose: 'Pydantic v2 request/response schemas with validation, field constraints, and examples' },
       ];
       
-      // Add per-screen routers
-      for (const screen of screens) {
+      // Add per-screen routers (prioritize top 2 primary domain screens for rapid response)
+      for (const screen of screens.slice(0, 2)) {
         const screenSlug = screen.screen.toLowerCase().replace(/[^a-z0-9]+/g, '_');
         filesToEnhance.push({
           path: `backend/app/routers/${screenSlug}.py`,
@@ -2757,7 +2849,7 @@ export const generateBackendEngine = createServerFn({ method: "POST" })
         system: "You are a Senior Backend Systems Engineer. Output complete, runnable code files.",
         prompt,
         temperature: 0.2,
-        maxTokens: 8192,
+        maxTokens: 2500,
         agentName: "Yaduk Engine 1 (Backend Architect)",
       });
 
@@ -2943,8 +3035,8 @@ export const generateFrontendEngine = createServerFn({ method: "POST" })
         { path: 'frontend/src/api/client.ts', purpose: 'Typed API client with axios, auth interceptors, and functions for every endpoint' },
       ];
 
-      // Add per-screen page components
-      for (const screen of screens) {
+      // Add per-screen page components (top 2 primary screens for fast response)
+      for (const screen of screens.slice(0, 2)) {
         const componentName = snakeToPascal(screen.screen.replace(/[^a-zA-Z0-9]+/g, '_'));
         filesToEnhance.push({
           path: `frontend/src/pages/${componentName}.tsx`,
@@ -3033,7 +3125,7 @@ export const generateFrontendEngine = createServerFn({ method: "POST" })
         system: "You are an expert Frontend Architect. Output complete, runnable React TypeScript code.",
         prompt,
         temperature: 0.2,
-        maxTokens: 8192,
+        maxTokens: 2500,
         agentName: "Yaduk Engine 2 (Frontend Architect)",
       });
 
