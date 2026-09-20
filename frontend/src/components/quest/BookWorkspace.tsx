@@ -4,9 +4,6 @@ import { YadukLogo } from "./YadukLogo";
 import {
   CheckCircle2,
   Lock,
-  ArrowRight,
-  ChevronLeft,
-  ChevronRight,
   ChevronDown,
   GraduationCap,
   BookOpen,
@@ -116,10 +113,10 @@ export function BookWorkspace({
   isMentorOpen: _isMentorOpen,
   children,
   leftPageOverride,
-  isBusy,
-  onProceedNext,
-  canProceedNext = true,
-  nextButtonLabel,
+  isBusy: _isBusy,
+  onProceedNext: _onProceedNext,
+  canProceedNext: _canProceedNext = true,
+  nextButtonLabel: _nextButtonLabel,
 }: StudentStudioLayoutProps) {
   const currentIndex = STAGES.findIndex((s) => s.key === currentStage);
   const activeStage = STAGES[currentIndex] || STAGES[0];
@@ -155,22 +152,6 @@ export function BookWorkspace({
     if (targetIndex > maxUnlockedIndex) return;
     if (targetIndex === currentIndex) return;
     onSelectStage(targetStage);
-  };
-
-  const handlePrev = () => {
-    if (currentIndex > 0) {
-      onSelectStage(STAGES[currentIndex - 1].key);
-    }
-  };
-
-  const handleNext = () => {
-    if (onProceedNext) {
-      onProceedNext();
-      return;
-    }
-    if (currentIndex < STAGES.length - 1 && currentIndex < maxUnlockedIndex) {
-      onSelectStage(STAGES[currentIndex + 1].key);
-    }
   };
 
   const percentComplete = Math.round(((currentIndex + 1) / STAGES.length) * 100);
@@ -375,51 +356,7 @@ export function BookWorkspace({
       </nav>
 
       {/* ====================================================================
-          3. STAGE TITLE CARD WITH NAVIGATION
-          ==================================================================== */}
-      <div className="mb-6 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200/80 bg-white px-5 py-4 shadow-xs">
-        <div>
-          <div className="flex items-center gap-2">
-            <span className="font-mono text-[10px] font-bold uppercase tracking-wider text-blue-700 bg-blue-50 px-2 py-0.5 rounded border border-blue-200">
-              Stage {activeStage.stepNum} of 9
-            </span>
-            <span className="text-xs font-semibold text-slate-500">
-              {activeStage.subtitle}
-            </span>
-          </div>
-          <p className="mt-1 text-xs text-slate-600">
-            {activeStage.description}
-          </p>
-        </div>
-
-        {/* Quick Nav Controls */}
-        <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={handlePrev}
-            disabled={currentIndex === 0}
-            className="inline-flex items-center gap-1 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-          >
-            <ChevronLeft className="size-3.5" />
-            <span>Previous</span>
-          </button>
-
-          {onProceedNext && (
-            <button
-              type="button"
-              disabled={isBusy || !canProceedNext}
-              onClick={onProceedNext}
-              className="inline-flex items-center gap-1.5 rounded-xl bg-blue-600 px-4 py-1.5 text-xs font-bold text-white shadow-sm shadow-blue-500/20 hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed transition-all cursor-pointer"
-            >
-              <span>{nextButtonLabel || "Continue →"}</span>
-              <ChevronRight className="size-3.5" />
-            </button>
-          )}
-        </div>
-      </div>
-
-      {/* ====================================================================
-          4. MAIN CLEAN WORKSPACE CANVAS
+          3. MAIN CLEAN WORKSPACE CANVAS
           ==================================================================== */}
       <div className="space-y-6">
         {leftPageOverride ? (
