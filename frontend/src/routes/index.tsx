@@ -19,11 +19,12 @@ import { CodebaseExplorerView } from "@/components/quest/CodebaseExplorerView";
 import { QuestHud } from "@/components/quest/QuestHud";
 import { QuestScrollPanel } from "@/components/quest/QuestScroll";
 import { BookWorkspace } from "@/components/quest/BookWorkspace";
+import { BookLandingCover } from "@/components/quest/BookLandingCover";
 import { useJourney } from "@/lib/journey";
 import { useAuth, AUTH_TOKEN_KEY } from "@/lib/auth-context";
 import { AuthModal } from "@/components/auth/AuthModal";
 import { AuthCard } from "@/components/auth/AuthCard";
-import { LogOut, Sparkles, ShieldCheck, ArrowRight } from "lucide-react";
+import { LogOut, Sparkles, ShieldCheck, ArrowRight, GraduationCap } from "lucide-react";
 import {
   analyzeFeasibility,
   applyBlueprintChangeFallback,
@@ -110,9 +111,15 @@ function LandingNavbar({
   };
 
   return (
-    <nav className="sticky top-0 z-30 border-b border-slate-200/80 bg-white/80 backdrop-blur-md">
-      <div className="mx-auto flex max-w-6xl items-center justify-between px-5 py-3.5">
-        <YadukLogo variant="full" size={38} />
+    <nav className="sticky top-0 z-30 border-b border-slate-200/80 bg-white/90 backdrop-blur-md">
+      <div className="mx-auto flex max-w-6xl items-center justify-between px-5 py-3">
+        <div className="flex items-center gap-3">
+          <YadukLogo variant="full" size={36} />
+          <span className="hidden sm:inline-flex items-center gap-1.5 rounded-full bg-blue-50 border border-blue-200/80 px-2.5 py-0.5 text-[11px] font-bold text-blue-800">
+            <GraduationCap className="size-3 text-blue-600" />
+            University Capstone Portal
+          </span>
+        </div>
 
         <div className="flex items-center gap-3">
           {isAuthenticated && user ? (
@@ -125,7 +132,7 @@ function LandingNavbar({
                   {user.fullName || user.email.split("@")[0]}
                 </span>
                 <span className="text-[10px] font-medium text-slate-500 hidden md:inline">
-                  {user.isGuest ? "· Guest" : "· Student"}
+                  {user.isGuest ? "· Guest" : "· Candidate"}
                 </span>
               </div>
               <button
@@ -156,111 +163,6 @@ function LandingNavbar({
         </div>
       </div>
     </nav>
-  );
-}
-
-function Intro({
-  onStart,
-  onOpenAuth,
-  onAuthSuccess,
-}: {
-  onStart: () => void;
-  onOpenAuth: (tab: "login" | "register") => void;
-  onAuthSuccess?: () => void;
-}) {
-  const { user, isAuthenticated } = useAuth();
-
-  return (
-    <section className="mx-auto max-w-6xl px-2 py-8 sm:py-12">
-      {/* Top Banner on Landing Page */}
-      <div className="grid gap-10 lg:grid-cols-[1.15fr_0.85fr] lg:items-center">
-        {/* Left Hero Column */}
-        <div className="text-left">
-          <div className="mb-4 flex items-center gap-3">
-            <div className="q-pop w-fit">
-              <YadukLogo size={52} />
-            </div>
-            <div>
-              <span className="inline-flex items-center gap-1.5 rounded-full bg-blue-50 border border-blue-200/80 px-3 py-1 text-xs font-medium text-blue-700">
-                <Sparkles className="size-3 text-blue-600" />
-                AI project architect & mentor
-              </span>
-              {isAuthenticated && user && (
-                <p className="mt-1.5 text-xs font-semibold text-emerald-600 flex items-center gap-1.5">
-                  <span className="size-2 rounded-full bg-emerald-500 animate-pulse inline-block" />
-                  Signed in as {user.fullName || user.email}
-                </p>
-              )}
-            </div>
-          </div>
-
-          <h1 className="q-rise font-display text-4xl font-extrabold leading-[1.08] sm:text-5xl lg:text-6xl text-slate-900">
-            Stop guessing your
-            <span className="bg-gradient-to-r from-sky-600 via-blue-600 to-teal-600 bg-clip-text text-transparent"> final-year project.</span>
-          </h1>
-
-          <p
-            className="q-rise mt-5 max-w-xl text-sm sm:text-base leading-relaxed text-slate-600"
-            style={{ animationDelay: "120ms" }}
-          >
-            Answer a few short questions. Get tailored project ideas scored around your skills, time and career
-            ambitions — backed by an honest reality check, complete system blueprint, and an AI mentor who adapts the
-            plan as you collaborate.
-          </p>
-
-          <div className="mt-7 flex flex-wrap items-center gap-3.5">
-            <button
-              onClick={onStart}
-              className="q-pop inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-blue-600 via-sky-600 to-teal-600 px-5 py-2.5 font-display text-xs sm:text-sm font-bold text-white shadow-md shadow-blue-500/25 transition-all hover:opacity-95 hover:shadow-lg hover:shadow-blue-500/30 hover:-translate-y-0.5 cursor-pointer"
-              style={{ animationDelay: "220ms" }}
-            >
-              <span>{isAuthenticated ? "Launch Project Discovery" : "Get Started Free"}</span>
-              <ArrowRight className="size-4" />
-            </button>
-            {!isAuthenticated && (
-              <button
-                onClick={() => onOpenAuth("login")}
-                className="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-xs sm:text-sm font-semibold text-slate-700 transition-all hover:bg-slate-50 hover:border-slate-300 shadow-xs cursor-pointer"
-              >
-                Already have an account? Sign In
-              </button>
-            )}
-          </div>
-        </div>
-
-        {/* Right Auth Column */}
-        <div className="w-full">
-          <AuthCard onStartJourney={onStart} {...(onAuthSuccess ? { onAuthSuccess } : {})} />
-        </div>
-      </div>
-
-      {/* 3 Step Features */}
-      <div className="mt-16 grid gap-5 text-left sm:grid-cols-3">
-        {[
-          [
-            "01 · Authenticate & Discover",
-            "Sign into your student account and answer a few intuitive questions to capture your skills, stack, and constraints.",
-          ],
-          [
-            "02 · Scored Project Ideas",
-            "Receive tailored final-year capstone ideas ranked with multi-dimensional match scores and difficulty estimates.",
-          ],
-          [
-            "03 · Build Plan & AI Mentor",
-            "Unlock an honest reality check, complete system architecture blueprint, and an interactive AI project mentor.",
-          ],
-        ].map(([tag, text], i) => (
-          <div
-            key={tag}
-            className="panel q-rise p-6 transition-all duration-300 hover:-translate-y-1 hover:shadow-md"
-            style={{ animationDelay: `${300 + i * 90}ms` }}
-          >
-            <span className="mono-label font-bold text-blue-600">{tag}</span>
-            <p className="mt-2 text-xs sm:text-sm text-slate-600 leading-relaxed">{text}</p>
-          </div>
-        ))}
-      </div>
-    </section>
   );
 }
 
@@ -900,7 +802,7 @@ function Home() {
 
       <main className="mx-auto max-w-7xl px-3 sm:px-5 py-6 sm:py-8">
         {!showQuest && (
-          <Intro
+          <BookLandingCover
             onStart={handleStartJourney}
             onOpenAuth={openAuth}
             onAuthSuccess={handleAuthSuccess}
